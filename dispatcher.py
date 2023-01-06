@@ -1,7 +1,9 @@
 import eventlet
+import json
 import socketio
 
-sio = socketio.Server()
+# TODO: using this with wildcard is bad, see if it can just be set to webserver ip
+sio = socketio.Server(cors_allowed_origins='*')
 app = socketio.WSGIApp(sio, static_files={
     '/': {'content_type': 'text/html', 'filename': 'index.html'}
 })
@@ -27,6 +29,9 @@ def my_message(sid, data):
 
 @sio.on('client_id')
 def client_id(sid, data):
+    if isinstance(data, str):
+        data = json.loads(data)
+
     print(f"Client at {sid} is a {data['type']}")
 
     if data['type'] == 'solver':
@@ -39,6 +44,8 @@ def client_id(sid, data):
 
 @sio.on('solve_request')
 def solve_request(sid, data):
+    if isinstance(data, str):
+        data = json.loads(data)
     print('Received solve request : ', data)
     data["requester_sid"] = sid
     sio.emit('solve_request', data, sid=solver_sids[0])
@@ -48,6 +55,12 @@ def solve_request(sid, data):
 def solve_response(sid, data):
     print('Received solve response : ', data)
     sio.emit('solve_response', data, sid=data['requester_sid'])
+
+
+@sio.on('solve_infeasible')
+def solve_infeasible(sid, data):
+    print('Received infeasible solve : ', data)
+    sio.emit('solve_infeasible', data, sid=data['requester_sid'])
 
 
 @sio.event

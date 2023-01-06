@@ -1,12 +1,13 @@
+import mip
 import numpy as np
 import time
 
-from mip import Model, xsum, BINARY, INTEGER, minimize, maximize
+from mip import Model, xsum, BINARY, INTEGER, minimize, maximize, OptimizationStatus
 
 print_variables = False
 
 
-def solve_ilp(method, stock_lengths, part_lengths, part_requests):
+def solve_ilp(method, stock_lengths, part_lengths, part_requests) -> tuple[mip.OptimizationStatus, list[int]]:
     print(method)
     print(stock_lengths)
     print(part_lengths)
@@ -26,10 +27,16 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests):
     model = solve_function(model, stock_lengths, part_lengths, part_requests)
 
     # optimizing the model
-    model.optimize(max_nodes=10000, max_seconds=30)
+    status = model.optimize(max_nodes=10000, max_seconds=30)
+
+    print('')
+    print(f"Optimization Status : {status}")
+
+    if status == OptimizationStatus.INFEASIBLE:
+        return status, [0]
 
     # printing the solution
-    print('')
+
     print('Objective value: {model.objective_value:.3}'.format(**locals()))
     print('Solution: ', end='')
 
@@ -56,7 +63,7 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests):
     with open("log.txt", "a") as f:
         f.write(log_string)
 
-    return output
+    return status, output
 
 
 def solve_default(model, stock_lengths, part_lengths, part_requests):

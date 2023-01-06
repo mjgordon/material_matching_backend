@@ -26,7 +26,7 @@ hops = hs.Hops(app)
     ]
 )
 def hops_ilp(method, stock_lengths, part_lengths, part_requests):
-    output = ilp.solve_ilp(method, stock_lengths, part_lengths, part_requests)
+    status, output = ilp.solve_ilp(method, stock_lengths, part_lengths, part_requests)
     return output
 
 
