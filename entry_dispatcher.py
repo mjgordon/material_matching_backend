@@ -1,15 +1,24 @@
+import argparse
 import datetime
-
 import mip
 import socketio
 
 import ilp
 
+
 sio = socketio.Client()
 
 
 def main():
-    sio.connect('http://localhost:5000')
+    parser = argparse.ArgumentParser(description='Give dispatcher IP address')
+    parser.add_argument("-i","--ip")
+    args = vars(parser.parse_args())
+    print(args["ip"])
+    if "ip" in args:
+        sio.connect(f"http://{args['ip']}:52323")
+    else:
+        sio.connect('http://localhost:52323')
+
     sio.wait()
 
 

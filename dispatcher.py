@@ -13,7 +13,7 @@ user_sids = []
 
 
 def main():
-    eventlet.wsgi.server(eventlet.listen(('127.0.0.1', 5000)), app)
+    eventlet.wsgi.server(eventlet.listen(('127.0.0.1', 52323)), app)
 
 
 @sio.event
