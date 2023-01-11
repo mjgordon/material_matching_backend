@@ -2,6 +2,12 @@ import eventlet
 import json
 import socketio
 
+import socket
+import fcntl
+import struct
+
+
+
 # TODO: using this with wildcard is bad, see if it can just be set to webserver ip
 sio = socketio.Server(cors_allowed_origins='*')
 app = socketio.WSGIApp(sio, static_files={
@@ -13,7 +19,9 @@ user_sids = []
 
 
 def main():
-    eventlet.wsgi.server(eventlet.listen(('127.0.0.1', 52323)), app)
+    ip = get_ip_address('eth0')
+    #eventlet.wsgi.server(eventlet.listen(('127.0.0.1', 52323)), app)
+    eventlet.wsgi.server(eventlet.listen((ip, 52323)), app)
 
 
 @sio.event
@@ -66,6 +74,15 @@ def solve_infeasible(sid, data):
 @sio.event
 def disconnect(sid):
     print('disconnect ', sid)
+
+
+def get_ip_address(ifname):
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    return socket.inet_ntoa(fcntl.ioctl(
+        s.fileno(),
+        0x8915,  # SIOCGIFADDR
+        struct.pack('256s', ifname[:15])
+    )[20:24])
 
 
 if __name__ == '__main__':
