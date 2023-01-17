@@ -3,6 +3,7 @@ import curses.textpad
 import eventlet
 import json
 import socketio
+import sys
 
 import os
 
@@ -19,10 +20,24 @@ user_sids = []
 stdscr = None
 win_solvers = None
 win_users = None
+win_messages = None
+message_list = []
+
+
+def print_redirect(string: str):
+    message_list.insert(0, string)
+    if len(message_list) > 100:
+        message_list.pop(-1)
+
+
+class PrintRedirect:
+    pass
+
+print_redirect = PrintRedirect()
 
 
 def main():
-    global stdscr, win_solvers, win_users
+    global stdscr, win_solvers, win_users, win_messages
     try:
         ip = os.popen('ip addr show eth0').read().split("inet ")[1].split("/")[0]
     except IndexError:
@@ -34,34 +49,44 @@ def main():
     stdscr.keypad(True)
     stdscr.nodelay(True)
 
+    sys.stdout = print_redirect
+
     redraw_curses()
 
     eventlet.wsgi.server(eventlet.listen((ip, 52323)), app)
 
 
 def redraw_curses():
-    global stdscr, win_solvers, win_users
+    global stdscr, win_solvers, win_users, win_messages
 
     stdscr.clear()
 
     rows, cols = stdscr.getmaxyx()
 
-    win_solvers = curses.newwin(rows, cols // 2, 0, 0)
-    win_users = curses.newwin(rows, cols // 2, 0, cols // 2)
+    win_solvers = curses.newwin(rows // 2, cols // 2, 0, 0)
+    win_users = curses.newwin(rows // 2, cols // 2, 0, cols // 2)
+    win_messages = curses.newwin(rows // 2 , cols, rows // 2 , 0)
 
-    curses.textpad.rectangle(win_solvers, 0, 0, rows - 1, cols // 2 - 2)
+    curses.textpad.rectangle(win_solvers, 0, 0, rows // 2 - 1, cols // 2 - 2)
     win_solvers.addstr(1, 1, "Solvers")
     for i, sid in enumerate(solver_sids):
         win_solvers.addstr(2 + i, 1, sid)
 
     win_solvers.refresh()
 
-    curses.textpad.rectangle(win_users, 0, 0, rows - 1, cols // 2 - 2)
+    curses.textpad.rectangle(win_users, 0, 0, rows // 2 - 1, cols // 2 - 2)
     win_users.addstr(1, 1, "Users")
     for i, sid in enumerate(user_sids):
         win_solvers.addstr(2 + i, 1, sid)
 
     win_users.refresh()
+
+    curses.textpad.rectangle(win_messages, 0, 0, rows // 2 - 2, cols - 1)
+    win_messages.addstr(1, 1, "Messages")
+    for i, message in enumerate(message_list):
+        win_messages.addstr(2 + i, 1, message)
+
+    win_messages.refresh()
 
 
 @sio.event
@@ -116,6 +141,7 @@ def solve_infeasible(sid, data):
 @sio.event
 def disconnect(sid):
     print('disconnect ', sid)
+
 
 
 
