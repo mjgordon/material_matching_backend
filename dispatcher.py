@@ -78,22 +78,19 @@ def redraw_curses():
 
     win_solvers = curses.newwin(rows // 2, cols // 2, 0, 0)
     win_users = curses.newwin(rows // 2, cols // 2, 0, cols // 2)
-    win_messages = curses.newwin(rows // 2, cols, rows // 2 , 0)
+    win_messages = curses.newwin(rows // 2, cols, rows // 2, 0)
 
-    curses.textpad.rectangle(win_solvers, 0, 0, rows // 2 - 1, cols // 2 - 2)
     win_solvers.addstr(1, 1, f"Solvers ({len(solver_sids)})")
     for i, sid in enumerate(solver_sids):
         win_solvers.addstr(2 + i, 1, sid)
-
+    curses.textpad.rectangle(win_solvers, 0, 0, rows // 2 - 1, cols // 2 - 2)
     win_solvers.refresh()
 
-    curses.textpad.rectangle(win_users, 0, 0, rows // 2 - 1, cols // 2 - 2)
     win_users.addstr(1, 1, f"Users ({len(user_sids)})")
     for i, sid in enumerate(user_sids):
-        win_solvers.addstr(2 + i, 1, sid)
-
+        win_users.addstr(2 + i, 1, sid)
+    curses.textpad.rectangle(win_users, 0, 0, rows // 2 - 1, cols // 2 - 2)
     win_users.refresh()
-
 
     win_messages.addstr(1, 1, "Messages")
     for i, message in enumerate(message_list):
@@ -140,11 +137,15 @@ def solve_request(sid, data):
     data["requester_sid"] = sid
     sio.emit('solve_request', data, sid=solver_sids[0])
 
+    redraw_curses()
+
 
 @sio.on('solve_response')
 def solve_response(sid, data):
     print('Received solve response : ', data)
     sio.emit('solve_response', data, sid=data['requester_sid'])
+
+    redraw_curses()
 
 
 @sio.on('solve_infeasible')
@@ -152,10 +153,14 @@ def solve_infeasible(sid, data):
     print('Received infeasible solve : ', data)
     sio.emit('solve_infeasible', data, sid=data['requester_sid'])
 
+    redraw_curses()
+
 
 @sio.event
 def disconnect(sid):
     print('disconnect ', sid)
+
+    redraw_curses()
 
 
 
