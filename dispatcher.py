@@ -1,3 +1,5 @@
+import curses
+import curses.textpad
 import eventlet
 import json
 import socketio
@@ -14,11 +16,52 @@ app = socketio.WSGIApp(sio, static_files={
 solver_sids = []
 user_sids = []
 
+stdscr = None
+win_solvers = None
+win_users = None
+
 
 def main():
-    ip = os.popen('ip addr show eth0').read().split("inet ")[1].split("/")[0]
-    #eventlet.wsgi.server(eventlet.listen(('127.0.0.1', 52323)), app)
+    global stdscr, win_solvers, win_users
+    try:
+        ip = os.popen('ip addr show eth0').read().split("inet ")[1].split("/")[0]
+    except IndexError:
+        ip = "127.0.0.1"
+
+    stdscr = curses.initscr()
+    curses.noecho()
+    curses.cbreak()
+    stdscr.keypad(True)
+    stdscr.nodelay(True)
+
+    redraw_curses()
+
     eventlet.wsgi.server(eventlet.listen((ip, 52323)), app)
+
+
+def redraw_curses():
+    global stdscr, win_solvers, win_users
+
+    stdscr.clear()
+
+    rows, cols = stdscr.getmaxyx()
+
+    win_solvers = curses.newwin(rows, cols // 2, 0, 0)
+    win_users = curses.newwin(rows, cols // 2, 0, cols // 2)
+
+    curses.textpad.rectangle(win_solvers, 0, 0, rows - 1, cols // 2 - 2)
+    win_solvers.addstr(1, 1, "Solvers")
+    for i, sid in enumerate(solver_sids):
+        win_solvers.addstr(2 + i, 1, sid)
+
+    win_solvers.refresh()
+
+    curses.textpad.rectangle(win_users, 0, 0, rows - 1, cols // 2 - 2)
+    win_users.addstr(1, 1, "Users")
+    for i, sid in enumerate(user_sids):
+        win_solvers.addstr(2 + i, 1, sid)
+
+    win_users.refresh()
 
 
 @sio.event
@@ -46,12 +89,14 @@ def client_id(sid, data):
     else:
         print(f"Bad client type : {data['type']}")
 
+    redraw_curses()
+
 
 @sio.on('solve_request')
 def solve_request(sid, data):
     if isinstance(data, str):
         data = json.loads(data)
-    print('Received solve request : ', data)
+    print('Received solve request : Length ', len(data))
     data["requester_sid"] = sid
     sio.emit('solve_request', data, sid=solver_sids[0])
 
