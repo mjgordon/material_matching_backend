@@ -24,14 +24,16 @@ win_messages = None
 message_list = []
 
 
-def print_redirect(string: str):
-    message_list.insert(0, string)
-    if len(message_list) > 100:
-        message_list.pop(-1)
-
-
 class PrintRedirect:
-    pass
+    def write(self, string: str):
+        if string != '\n':
+            message_list.insert(0, string)
+        if len(message_list) > 100:
+            message_list.pop(-1)
+
+    def flush(self):
+        pass
+
 
 print_redirect = PrintRedirect()
 
@@ -51,6 +53,9 @@ def main():
 
     sys.stdout = print_redirect
 
+    for i in range(30):
+        print(i)
+
     redraw_curses()
 
     eventlet.wsgi.server(eventlet.listen((ip, 52323)), app)
@@ -65,7 +70,7 @@ def redraw_curses():
 
     win_solvers = curses.newwin(rows // 2, cols // 2, 0, 0)
     win_users = curses.newwin(rows // 2, cols // 2, 0, cols // 2)
-    win_messages = curses.newwin(rows // 2 , cols, rows // 2 , 0)
+    win_messages = curses.newwin(rows // 2, cols, rows // 2 , 0)
 
     curses.textpad.rectangle(win_solvers, 0, 0, rows // 2 - 1, cols // 2 - 2)
     win_solvers.addstr(1, 1, "Solvers")
@@ -81,11 +86,13 @@ def redraw_curses():
 
     win_users.refresh()
 
-    curses.textpad.rectangle(win_messages, 0, 0, rows // 2 - 2, cols - 1)
+
     win_messages.addstr(1, 1, "Messages")
     for i, message in enumerate(message_list):
-        win_messages.addstr(2 + i, 1, message)
-
+        if i > 5:
+            break
+        win_messages.addstr(rows // 2 - 3 - i, 1, str(rows // 2 -2 - i) + " : " + message)
+    curses.textpad.rectangle(win_messages, 0, 0, rows // 2 - 2, cols - 1)
     win_messages.refresh()
 
 
