@@ -1,7 +1,6 @@
 import curses
 import curses.textpad
-import logging
-
+import datetime
 import eventlet
 import json
 import os
@@ -29,7 +28,7 @@ message_list = []
 class PrintRedirect:
     def write(self, string: str):
         if string != '\n':
-            message_list.insert(0, string)
+            message_list.insert(0, str(datetime.datetime.now()) + " : " + string)
         if len(message_list) > 100:
             message_list.pop(-1)
 
@@ -55,9 +54,6 @@ def main():
 
     sys.stdout = print_redirect
     sys.stderr = print_redirect
-
-    for i in range(30):
-        print(i)
 
     redraw_curses()
 
@@ -85,14 +81,14 @@ def redraw_curses():
     win_messages = curses.newwin(rows // 2, cols, rows // 2 , 0)
 
     curses.textpad.rectangle(win_solvers, 0, 0, rows // 2 - 1, cols // 2 - 2)
-    win_solvers.addstr(1, 1, "Solvers")
+    win_solvers.addstr(1, 1, f"Solvers ({len(solver_sids)})")
     for i, sid in enumerate(solver_sids):
         win_solvers.addstr(2 + i, 1, sid)
 
     win_solvers.refresh()
 
     curses.textpad.rectangle(win_users, 0, 0, rows // 2 - 1, cols // 2 - 2)
-    win_users.addstr(1, 1, "Users")
+    win_users.addstr(1, 1, f"Users ({len(user_sids)})")
     for i, sid in enumerate(user_sids):
         win_solvers.addstr(2 + i, 1, sid)
 
@@ -101,9 +97,9 @@ def redraw_curses():
 
     win_messages.addstr(1, 1, "Messages")
     for i, message in enumerate(message_list):
-        if i > 5:
+        if i > rows // 2 - 5:
             break
-        win_messages.addstr(rows // 2 - 3 - i, 1, str(rows // 2 -2 - i) + " : " + message)
+        win_messages.addstr(rows // 2 - 3 - i, 1,message)
     curses.textpad.rectangle(win_messages, 0, 0, rows // 2 - 2, cols - 1)
     win_messages.refresh()
 
