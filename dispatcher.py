@@ -25,8 +25,6 @@ win_users = None
 win_messages = None
 message_list = []
 
-signal.signal(signal.SIGINT, handler)
-
 
 class PrintRedirect:
     def write(self, string: str):
@@ -71,6 +69,8 @@ def handler(signum, frame):
     stdscr.keypad(False)
     curses.echo()
     exit(0)
+
+signal.signal(signal.SIGINT, handler)
 
 
 def redraw_curses():
