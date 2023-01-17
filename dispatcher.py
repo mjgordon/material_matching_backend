@@ -4,14 +4,14 @@ import logging
 
 import eventlet
 import json
+import os
+import signal
 import socketio
 import sys
 
-import os
-
 
 # TODO: using this with wildcard is bad, see if it can just be set to webserver ip
-sio = socketio.Server(cors_allowed_origins='*', logger=False, engineio_logger=False)
+sio = socketio.Server(cors_allowed_origins='*')
 
 app = socketio.WSGIApp(sio, static_files={
     '/': {'content_type': 'text/html', 'filename': 'index.html'}
@@ -24,6 +24,8 @@ win_solvers = None
 win_users = None
 win_messages = None
 message_list = []
+
+signal.signal(signal.SIGINT, handler)
 
 
 class PrintRedirect:
@@ -54,6 +56,7 @@ def main():
     stdscr.nodelay(True)
 
     sys.stdout = print_redirect
+    sys.stderr = print_redirect
 
     for i in range(30):
         print(i)
@@ -61,6 +64,13 @@ def main():
     redraw_curses()
 
     eventlet.wsgi.server(eventlet.listen((ip, 52323)), app)
+
+
+def handler(signum, frame):
+    curses.nocbreak()
+    stdscr.keypad(False)
+    curses.echo()
+    exit(0)
 
 
 def redraw_curses():
