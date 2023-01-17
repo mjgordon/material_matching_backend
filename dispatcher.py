@@ -5,15 +5,16 @@ import json
 import socketio
 import sys
 
+
 import os
 
 
 # TODO: using this with wildcard is bad, see if it can just be set to webserver ip
-sio = socketio.Server(cors_allowed_origins='*')
+sio = socketio.Server(cors_allowed_origins='*', logger=False)
+
 app = socketio.WSGIApp(sio, static_files={
     '/': {'content_type': 'text/html', 'filename': 'index.html'}
 })
-
 solver_sids = []
 user_sids = []
 
