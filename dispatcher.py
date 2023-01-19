@@ -18,6 +18,9 @@ app = socketio.WSGIApp(sio, static_files={
 solver_sids = []
 user_sids = []
 
+solver_usage = {}
+user_usage = {}
+
 stdscr = None
 win_solvers = None
 win_users = None
@@ -86,13 +89,15 @@ def redraw_curses():
 
     win_solvers.addstr(1, 1, f"Solvers ({len(solver_sids)})")
     for i, sid in enumerate(solver_sids):
-        win_solvers.addstr(2 + i, 1, sid)
+        solver_status = "*" if sid in solver_usage and solver_usage[sid] else " "
+        win_solvers.addstr(2 + i, 1, f"[{solver_status}] {sid}")
     curses.textpad.rectangle(win_solvers, 0, 0, rows // 2 - 1, cols // 2 - 2)
     win_solvers.refresh()
 
     win_users.addstr(1, 1, f"Users ({len(user_sids)})")
     for i, sid in enumerate(user_sids):
-        win_users.addstr(2 + i, 1, sid)
+        user_status = "*" if sid in user_usage and user_usage[sid] else " "
+        win_users.addstr(2 + i, 1, f"[{user_status}] {sid}")
     curses.textpad.rectangle(win_users, 0, 0, rows // 2 - 1, cols // 2 - 2)
     win_users.refresh()
 
@@ -146,7 +151,18 @@ def solve_request(sid, data):
         data = json.loads(data)
     print(f'Received solve request : Length {(len(data))}')
     data["requester_sid"] = sid
-    sio.emit('solve_request', data, room=solver_sids[0])
+
+    solver_id = 0
+    for i, solver_sid in enumerate(solver_sids):
+        if solver_sid not in solver_usage or solver_usage[solver_sid] == False:
+            solver_usage[solver_sid] = True
+            solver_id = i
+            break
+
+    sio.emit('solve_request', data, room=solver_sids[solver_id])
+
+    solver_usage[solver_sids[solver_id]] = True
+    user_usage[sid] = True
 
     redraw_curses()
 
@@ -156,6 +172,9 @@ def solve_response(sid, data):
     print('Received solve response : ', data["requester_sid"])
     sio.emit('solve_response', data, room=data['requester_sid'])
 
+    solver_usage[sid] = False
+    user_usage[data['requester_sid']] = False
+
     redraw_curses()
 
 
@@ -163,6 +182,9 @@ def solve_response(sid, data):
 def solve_infeasible(sid, data):
     print('Received infeasible solve : ', data["requester_sid"])
     sio.emit('solve_infeasible', data, room=data['requester_sid'])
+
+    solver_usage[sid] = False
+    user_usage[data['requester_sid']] = False
 
     redraw_curses()
 
