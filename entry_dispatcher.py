@@ -24,13 +24,13 @@ def main():
 
 @sio.event
 def connect():
-    print('connection established')
+    print('Connected to Dispatcher')
     sio.emit("client_id", {'type': 'solver'})
 
 
 @sio.event
 def disconnect():
-    print('disconnected from server')
+    print('Disconnected from Dispatcher')
 
 
 @sio.on("solve_request")
@@ -51,7 +51,6 @@ def solve_request(data):
         solve_output = solve_output[0:-len(stock_lengths)]
         response = {'requester_sid': data['requester_sid'], 'usage': solve_output}
         sio.emit("solve_response", response)
-        print(solve_output)
 
 
 if __name__ == '__main__':
