@@ -146,7 +146,7 @@ def solve_request(sid, data):
         data = json.loads(data)
     print(f'Received solve request : Length {(len(data))}')
     data["requester_sid"] = sid
-    sio.emit('solve_request', data, sid=solver_sids[0])
+    sio.emit('solve_request', data, room=solver_sids[0])
 
     redraw_curses()
 
@@ -154,7 +154,7 @@ def solve_request(sid, data):
 @sio.on('solve_response')
 def solve_response(sid, data):
     print('Received solve response : ', data["requester_sid"])
-    sio.emit('solve_response', data, sid=data['requester_sid'])
+    sio.emit('solve_response', data, room=data['requester_sid'])
 
     redraw_curses()
 
@@ -162,15 +162,9 @@ def solve_response(sid, data):
 @sio.on('solve_infeasible')
 def solve_infeasible(sid, data):
     print('Received infeasible solve : ', data["requester_sid"])
-    sio.emit('solve_infeasible', data, sid=data['requester_sid'])
+    sio.emit('solve_infeasible', data, room=data['requester_sid'])
 
     redraw_curses()
-
-
-
-
-
-
 
 
 if __name__ == '__main__':
