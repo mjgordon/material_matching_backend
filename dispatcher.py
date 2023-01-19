@@ -24,6 +24,8 @@ win_users = None
 win_messages = None
 message_list = []
 
+ip = None
+
 
 class PrintRedirect:
     def write(self, string: str):
@@ -40,7 +42,7 @@ print_redirect = PrintRedirect()
 
 
 def main():
-    global stdscr, win_solvers, win_users, win_messages
+    global stdscr, win_solvers, win_users, win_messages, ip
     try:
         ip = os.popen('ip addr show eth0').read().split("inet ")[1].split("/")[0]
     except IndexError:
@@ -72,7 +74,7 @@ signal.signal(signal.SIGINT, exit_handler)
 
 
 def redraw_curses():
-    global stdscr, win_solvers, win_users, win_messages
+    global stdscr, win_solvers, win_users, win_messages, ip
 
     stdscr.clear()
 
@@ -94,7 +96,7 @@ def redraw_curses():
     curses.textpad.rectangle(win_users, 0, 0, rows // 2 - 1, cols // 2 - 2)
     win_users.refresh()
 
-    win_messages.addstr(1, 1, "Messages")
+    win_messages.addstr(1, 1, f"Messages | This IP {ip}")
     for i, message in enumerate(message_list):
         if i > rows // 2 - 5:
             break
@@ -105,13 +107,20 @@ def redraw_curses():
 
 @sio.event
 def connect(sid, environ):
-    #emit("hello world from server")
-    print('connect ', sid)
+    print(f'Connection from {sid}')
+    
+    redraw_curses()
 
 
 @sio.event
-def my_message(sid, data):
-    print('message ', data)
+def disconnect(sid):
+    print(f'Disconnection from {sid}')
+    if sid in solver_sids:
+        solver_sids.remove(sid)
+    elif sid in user_sids:
+        user_sids.remove(sid)
+
+    redraw_curses()
 
 
 @sio.on('client_id')
@@ -158,11 +167,7 @@ def solve_infeasible(sid, data):
     redraw_curses()
 
 
-@sio.event
-def disconnect(sid):
-    print('disconnect ', sid)
 
-    redraw_curses()
 
 
 
