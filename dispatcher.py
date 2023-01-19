@@ -91,7 +91,7 @@ def redraw_curses():
     win_solvers.addstr(1, 1, f"Solvers ({len(solver_sids)})")
     for i, sid in enumerate(solver_sids):
         solver_status = "*" if sid in solver_usage and solver_usage[sid] else " "
-        win_solvers.addstr(2 + i, 1, f"[{solver_status}] {sid}")
+        win_solvers.addstr(2 + i, 1, f"[{solver_status}] {sid} ({solver_nametable[sid]})")
     curses.textpad.rectangle(win_solvers, 0, 0, rows // 2 - 1, cols // 2 - 2)
     win_solvers.refresh()
 
