@@ -20,6 +20,8 @@ user_sids = []
 solver_usage = {}
 user_usage = {}
 
+solver_nametable = {}
+
 stdscr = None
 win_solvers = None
 win_users = None
@@ -136,6 +138,7 @@ def client_id(sid, data):
 
     if data['type'] == 'solver':
         solver_sids.append(sid)
+        solver_nametable[sid] = data["name"] if "name" in data else ""
     elif data['type'] == 'user':
         user_sids.append(sid)
     else:
@@ -148,7 +151,7 @@ def client_id(sid, data):
 def solve_request(sid, data):
     if isinstance(data, str):
         data = json.loads(data)
-    print(f'Received solve request for method {data["method"]} from user {sid}')
+    print(f"Received solve request for method '{data['method']}' from user : {sid}")
     data["requester_sid"] = sid
 
     solver_id = 0
