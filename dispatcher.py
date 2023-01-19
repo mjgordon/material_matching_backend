@@ -8,7 +8,6 @@ import signal
 import socketio
 import sys
 
-
 # TODO: using this with wildcard is bad, see if it can just be set to webserver ip
 sio = socketio.Server(cors_allowed_origins='*')
 
@@ -105,7 +104,7 @@ def redraw_curses():
     for i, message in enumerate(message_list):
         if i > rows // 2 - 5:
             break
-        win_messages.addstr(rows // 2 - 3 - i, 1,message)
+        win_messages.addstr(rows // 2 - 3 - i, 1, message)
     curses.textpad.rectangle(win_messages, 0, 0, rows // 2 - 2, cols - 1)
     win_messages.refresh()
 
@@ -113,7 +112,7 @@ def redraw_curses():
 @sio.event
 def connect(sid, environ):
     print(f'Connection from {sid}')
-    
+
     redraw_curses()
 
 
@@ -149,12 +148,12 @@ def client_id(sid, data):
 def solve_request(sid, data):
     if isinstance(data, str):
         data = json.loads(data)
-    print(f'Received solve request : Length {(len(data))}')
+    print(f'Received solve request for method {data["method"]} from user {sid}')
     data["requester_sid"] = sid
 
     solver_id = 0
     for i, solver_sid in enumerate(solver_sids):
-        if solver_sid not in solver_usage or solver_usage[solver_sid] == False:
+        if solver_sid not in solver_usage or solver_usage[solver_sid] is False:
             solver_usage[solver_sid] = True
             solver_id = i
             break
@@ -169,7 +168,7 @@ def solve_request(sid, data):
 
 @sio.on('solve_response')
 def solve_response(sid, data):
-    print('Received solve response : ', data["requester_sid"])
+    print(f'Received feasible solver response for user : {data["requester_sid"]}')
     sio.emit('solve_response', data, room=data['requester_sid'])
 
     solver_usage[sid] = False
@@ -180,7 +179,7 @@ def solve_response(sid, data):
 
 @sio.on('solve_infeasible')
 def solve_infeasible(sid, data):
-    print('Received infeasible solve : ', data["requester_sid"])
+    print(f'Received infeasible solve response for user : {data["requester_sid"]}')
     sio.emit('solve_infeasible', data, room=data['requester_sid'])
 
     solver_usage[sid] = False
