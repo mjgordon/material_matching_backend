@@ -60,13 +60,15 @@ def main():
     eventlet.wsgi.server(eventlet.listen((ip, 52323)), app)
 
 
-def handler(signum, frame):
+def exit_handler(signum, frame):
     curses.nocbreak()
     stdscr.keypad(False)
     curses.echo()
+    curses.endwin()
     exit(0)
 
-signal.signal(signal.SIGINT, handler)
+
+signal.signal(signal.SIGINT, exit_handler)
 
 
 def redraw_curses():
@@ -133,7 +135,7 @@ def client_id(sid, data):
 def solve_request(sid, data):
     if isinstance(data, str):
         data = json.loads(data)
-    print('Received solve request : Length ', len(data))
+    print(f'Received solve request : Length {(len(data))}')
     data["requester_sid"] = sid
     sio.emit('solve_request', data, sid=solver_sids[0])
 
@@ -142,7 +144,7 @@ def solve_request(sid, data):
 
 @sio.on('solve_response')
 def solve_response(sid, data):
-    print('Received solve response : ', data)
+    print('Received solve response : ', data["requester_sid"])
     sio.emit('solve_response', data, sid=data['requester_sid'])
 
     redraw_curses()
@@ -150,7 +152,7 @@ def solve_response(sid, data):
 
 @sio.on('solve_infeasible')
 def solve_infeasible(sid, data):
-    print('Received infeasible solve : ', data)
+    print('Received infeasible solve : ', data["requester_sid"])
     sio.emit('solve_infeasible', data, sid=data['requester_sid'])
 
     redraw_curses()
