@@ -53,7 +53,7 @@ def solve_request(data):
 
     status, solve_output = ilp.solve_ilp(method, stock_lengths, part_lengths, part_requests)
 
-    if status == mip.OptimizationStatus.INFEASIBLE:
+    if status == mip.OptimizationStatus.INFEASIBLE or status == mip.OptimizationStatus.NO_SOLUTION_FOUND:
         response = {'requester_sid': data['requester_sid']}
         sio.emit("solve_infeasible", response)
     else:

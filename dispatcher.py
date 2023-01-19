@@ -151,7 +151,7 @@ def client_id(sid, data):
 def solve_request(sid, data):
     if isinstance(data, str):
         data = json.loads(data)
-    print(f"Received solve request for method '{data['method']}' from user : {sid}")
+    print(f"[->] solve request for method '{data['method']}' from user : {sid}")
     data["requester_sid"] = sid
 
     solver_id = 0
@@ -171,7 +171,7 @@ def solve_request(sid, data):
 
 @sio.on('solve_response')
 def solve_response(sid, data):
-    print(f'Received feasible solver response for user : {data["requester_sid"]}')
+    print(f'[<-] feasible solver response for user : {data["requester_sid"]}')
     sio.emit('solve_response', data, room=data['requester_sid'])
 
     solver_usage[sid] = False
@@ -182,7 +182,7 @@ def solve_response(sid, data):
 
 @sio.on('solve_infeasible')
 def solve_infeasible(sid, data):
-    print(f'Received infeasible solve response for user : {data["requester_sid"]}')
+    print(f'[x-] infeasible solve response for user : {data["requester_sid"]}')
     sio.emit('solve_infeasible', data, room=data['requester_sid'])
 
     solver_usage[sid] = False

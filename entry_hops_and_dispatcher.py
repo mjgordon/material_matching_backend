@@ -3,6 +3,7 @@ import ghhops_server as hs
 import rhino3dm
 import scipy.optimize
 import socketio
+import time
 
 from flask import Flask
 
@@ -30,7 +31,7 @@ def main():
 @sio.event
 def connect():
     print('connection established')
-    sio.emit("client_id", {'type': 'user'})
+    sio.emit("client_id", {'type': 'user', 'name': 'rhino'})
 
 
 @sio.on('solve_response')
@@ -42,7 +43,9 @@ def solve_response(data):
 
 @sio.on('solve_infeasible')
 def solve_infeasible(data):
+    global solving_flag
     print("Infeasible")
+    solving_flag = False
 
 
 
@@ -69,7 +72,8 @@ def hops_ilp(method, stock_lengths, part_lengths, part_requests):
                                'part_requests': part_requests})
     solving_flag = True
     while solving_flag:
-        pass
+        time.sleep(0.1)
+
     return response_usage
 
 

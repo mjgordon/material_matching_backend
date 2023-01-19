@@ -8,10 +8,10 @@ print_variables = False
 
 
 def solve_ilp(method, stock_lengths, part_lengths, part_requests) -> tuple[mip.OptimizationStatus, list[int]]:
-    print(method)
-    print(stock_lengths)
-    print(part_lengths)
-    print(part_requests)
+    print(f"Method : {method}")
+    print(f"{len(stock_lengths)} stock pieces between {np.min(stock_lengths)} and {np.max(stock_lengths)}")
+    print(f"{len(part_lengths)} part types between {np.min(part_lengths)} and {np.max(part_lengths)}")
+    print(f"{sum(part_requests)} total part requests")
     time_start = time.time()
     model = Model()
     model.max_mip_gap_abs = 1.5
@@ -32,7 +32,7 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests) -> tuple[mip.O
     print('')
     print(f"Optimization Status : {status}")
 
-    if status == OptimizationStatus.INFEASIBLE:
+    if status == OptimizationStatus.INFEASIBLE or status == OptimizationStatus.NO_SOLUTION_FOUND:
         return status, [0]
 
     # printing the solution
