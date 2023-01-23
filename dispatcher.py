@@ -80,35 +80,38 @@ signal.signal(signal.SIGINT, exit_handler)
 def redraw_curses():
     global stdscr, win_solvers, win_users, win_messages, ip
 
-    stdscr.clear()
+    try:
+        stdscr.clear()
 
-    rows, cols = stdscr.getmaxyx()
+        rows, cols = stdscr.getmaxyx()
 
-    win_solvers = curses.newwin(rows // 2, cols // 2, 0, 0)
-    win_users = curses.newwin(rows // 2, cols // 2, 0, cols // 2)
-    win_messages = curses.newwin(rows // 2, cols, rows // 2, 0)
+        win_solvers = curses.newwin(rows // 2, cols // 2, 0, 0)
+        win_users = curses.newwin(rows // 2, cols // 2, 0, cols // 2)
+        win_messages = curses.newwin(rows // 2, cols, rows // 2, 0)
 
-    win_solvers.addstr(1, 1, f"Solvers ({len(solver_sids)})")
-    for i, sid in enumerate(solver_sids):
-        solver_status = "*" if sid in solver_usage and solver_usage[sid] else " "
-        win_solvers.addstr(2 + i, 1, f"[{solver_status}] {sid} ({solver_nametable[sid]})")
-    curses.textpad.rectangle(win_solvers, 0, 0, rows // 2 - 1, cols // 2 - 2)
-    win_solvers.refresh()
+        win_solvers.addstr(1, 1, f"Solvers ({len(solver_sids)})")
+        for i, sid in enumerate(solver_sids):
+            solver_status = "*" if sid in solver_usage and solver_usage[sid] else " "
+            win_solvers.addstr(2 + i, 1, f"[{solver_status}] {sid} ({solver_nametable[sid]})")
+        curses.textpad.rectangle(win_solvers, 0, 0, rows // 2 - 1, cols // 2 - 2)
+        win_solvers.refresh()
 
-    win_users.addstr(1, 1, f"Users ({len(user_sids)})")
-    for i, sid in enumerate(user_sids):
-        user_status = "*" if sid in user_usage and user_usage[sid] else " "
-        win_users.addstr(2 + i, 1, f"[{user_status}] {sid}")
-    curses.textpad.rectangle(win_users, 0, 0, rows // 2 - 1, cols // 2 - 2)
-    win_users.refresh()
+        win_users.addstr(1, 1, f"Users ({len(user_sids)})")
+        for i, sid in enumerate(user_sids):
+            user_status = "*" if sid in user_usage and user_usage[sid] else " "
+            win_users.addstr(2 + i, 1, f"[{user_status}] {sid}")
+        curses.textpad.rectangle(win_users, 0, 0, rows // 2 - 1, cols // 2 - 2)
+        win_users.refresh()
 
-    win_messages.addstr(1, 1, f"Messages | This IP {ip}")
-    for i, message in enumerate(message_list):
-        if i > rows // 2 - 5:
-            break
-        win_messages.addstr(rows // 2 - 3 - i, 1, message)
-    curses.textpad.rectangle(win_messages, 0, 0, rows // 2 - 2, cols - 1)
-    win_messages.refresh()
+        win_messages.addstr(1, 1, f"Messages | This IP {ip}")
+        for i, message in enumerate(message_list):
+            if i > rows // 2 - 5:
+                break
+            win_messages.addstr(rows // 2 - 3 - i, 1, message)
+        curses.textpad.rectangle(win_messages, 0, 0, rows // 2 - 2, cols - 1)
+        win_messages.refresh()
+    except curses.error as e:
+        print(e)
 
 
 @sio.event
