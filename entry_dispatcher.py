@@ -66,8 +66,8 @@ def signal_handler(signal, frame):
     sio.disconnect()
     sys.exit(0)
 
-
-signal.signal(signal.SIGINT, signal_handler)
+#Turned this off as it was causing the entry script to hang when scrolling on windows
+#signal.signal(signal.SIGINT, signal_handler)
 
 
 if __name__ == '__main__':
