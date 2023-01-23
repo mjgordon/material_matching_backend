@@ -4,10 +4,21 @@ import time
 
 from mip import Model, xsum, BINARY, INTEGER, minimize, maximize, OptimizationStatus
 
-print_variables = False
+debug_print_variables = False
 
 
-def solve_ilp(method, stock_lengths, part_lengths, part_requests) -> tuple[mip.OptimizationStatus, list[int]]:
+def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args = None) -> tuple[mip.OptimizationStatus, list[int]]:
+    """
+    Solves a material matching problem using integer linear programming
+
+    :param str method: Goal definition used. Currently may be 'default' (minimize stock pieces), 'waste' (minimize
+    stock cutoff), or 'max' (maximize contigiuous remaining length)
+    :param [float] stock_lengths: The length of each member of the currently considered stock
+    :param [float] part_lengths: The length of each unique part type used in the design
+    :param [int] part_requests: The number of each unique part type required by the design
+    :param dict model_args: Pass tuning parameters directly to the model. Currently relevant for testing model efficiency tests
+
+    """
     print(f"Method : {method}")
     print(f"{len(stock_lengths)} stock pieces between {np.min(stock_lengths)} and {np.max(stock_lengths)}")
     print(f"{len(part_lengths)} part types between {np.min(part_lengths)} and {np.max(part_lengths)}")
@@ -16,18 +27,30 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests) -> tuple[mip.O
     model = Model()
     model.max_mip_gap_abs = 1.5
     model.max_mip_gap = .1
-    # model.cuts = 3
+
+    # 0 (No cuts) allows for finding feasible solutions within the 30 second window
+    model.cuts = 0
+
+    # Improves speed
+    model.preprocess = 1
+
+    model.emphasis = 1
+
     if method == "default":
-        solve_function = solve_default
+        solve_function = _solve_default
     elif method == "waste":
-        solve_function = solve_waste
+        solve_function = _solve_waste
     elif method == "max":
-        solve_function = solve_max
+        solve_function = _solve_max
+    else:
+        print(f"Bad method argument '{method}'")
+        return OptimizationStatus.NO_SOLUTION_FOUND, [0]
 
     model = solve_function(model, stock_lengths, part_lengths, part_requests)
+    model.threads = -1
 
     # optimizing the model
-    status = model.optimize(max_nodes=10000, max_seconds=30)
+    status: OptimizationStatus = model.optimize(max_nodes=10000, max_seconds=30)
 
     print('')
     print(f"Optimization Status : {status}")
@@ -40,7 +63,7 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests) -> tuple[mip.O
     print('Objective value: {model.objective_value:.3}'.format(**locals()))
     print('Solution: ', end='')
 
-    if print_variables:
+    if debug_print_variables:
         for v in model.vars:
             if v.x > 1e-5:
                 print('{v.name} = {v.x}'.format(**locals()))
@@ -66,7 +89,7 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests) -> tuple[mip.O
     return status, output
 
 
-def solve_default(model, stock_lengths, part_lengths, part_requests):
+def _solve_default(model, stock_lengths, part_lengths, part_requests):
     """
     Strategy most similar to stock cutting example. 
     Built using loops and explicit utilization boolean variables
@@ -109,7 +132,7 @@ def solve_default(model, stock_lengths, part_lengths, part_requests):
     return model
 
 
-def solve_waste(model, stock_lengths, part_lengths, part_requests):
+def _solve_waste(model, stock_lengths, part_lengths, part_requests):
     """
     Optimizes for minimizing waste from used piecess
     Does not attempt leftover usability
@@ -158,10 +181,13 @@ def solve_waste(model, stock_lengths, part_lengths, part_requests):
     return model
 
 
-def solve_max(model, stock_lengths, part_lengths, part_requests):
+def _solve_max(model, stock_lengths, part_lengths, part_requests):
     """
-    Ignores the utilized variable, tries to optimize the square of leftovers 
-    Uses some SOS nonsense
+    Ignores the utilized variable, tries to optimize the square of leftovers Because we're trying to maximize a
+    convex function, uses special-ordered-sets to approximate the function with linear segments
+    See :
+    https://python-mip.readthedocs.io/en/latest/sos.html
+    https://python-mip.readthedocs.io/en/latest/examples.html#exsos
     """
     part_lengths = np.array(part_lengths)
     part_count = len(part_lengths)
