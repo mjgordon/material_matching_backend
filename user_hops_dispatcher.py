@@ -1,6 +1,14 @@
+"""
+SocketIO client that connects to the dispatcher as a user. Also creates a hops-visible flask server, and passes solve
+requests from hops to the dispatcher
+"""
+
+import argparse
 import ghhops_server as hs
 import rhino3dm
 import scipy.optimize
+import socketio
+import time
 
 from flask import Flask
 
@@ -8,6 +16,42 @@ import ilp
 
 app = Flask(__name__)
 hops = hs.Hops(app)
+sio = socketio.Client()
+
+solving_flag: bool = False
+response_usage = None
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Give dispatcher IP address')
+    parser.add_argument("-i", "--ip")
+    args = vars(parser.parse_args())
+    print(args["ip"])
+
+    sio.connect("http://" + args["ip"] + ":52323")
+
+    app.run()
+
+
+@sio.event
+def connect():
+    print('connection established')
+    sio.emit("client_id", {'type': 'user', 'name': 'rhino'})
+
+
+@sio.on('solve_response')
+def solve_response(data):
+    global response_usage, solving_flag
+    response_usage = data["usage"]
+    solving_flag = False
+
+
+@sio.on('solve_infeasible')
+def solve_infeasible(data):
+    global solving_flag
+    print("Infeasible")
+    solving_flag = False
+
 
 
 @hops.component(
@@ -26,8 +70,16 @@ hops = hs.Hops(app)
     ]
 )
 def hops_ilp(method, stock_lengths, part_lengths, part_requests):
-    status, output = ilp.solve_ilp(method, stock_lengths, part_lengths, part_requests)
-    return output
+    global solving_flag
+    sio.emit("solve_request", {'method': method,
+                               'stock_lengths': stock_lengths,
+                               'part_lengths': part_lengths,
+                               'part_requests': part_requests})
+    solving_flag = True
+    while solving_flag:
+        time.sleep(0.1)
+
+    return response_usage
 
 
 @hops.component(
@@ -54,4 +106,4 @@ def objective(x, a, b, c):
 
 
 if __name__ == "__main__":
-    app.run()
+    main()

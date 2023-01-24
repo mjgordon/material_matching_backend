@@ -1,3 +1,8 @@
+"""
+Socketio client that connects to the dispatcher as a solver.
+Receives solve requests and calls the ilp functions
+"""
+
 import argparse
 import datetime
 import mip
@@ -19,14 +24,16 @@ def main():
     parser.add_argument("-i","--ip")
     parser.add_argument("-n","--name")
     args = vars(parser.parse_args())
-    print(args["ip"])
+
+    print(f"Looking for dispatcher at {args['ip']}")
+
+    if "name" in args:
+        solver_name = args['name']
+
     if "ip" in args:
         sio.connect(f"http://{args['ip']}:52323")
     else:
         sio.connect('http://localhost:52323')
-
-    if "name" in args:
-        solver_name = args['name']
 
     sio.wait()
 
@@ -50,8 +57,9 @@ def solve_request(data):
     stock_lengths = [float(n) for n in data["stock_lengths"]]
     part_lengths = [float(n) for n in data["part_lengths"]]
     part_requests = [int(n) for n in data["part_requests"]]
+    model_args = data["model_args"] if "model_args" in data else {}
 
-    status, solve_output = ilp.solve_ilp(method, stock_lengths, part_lengths, part_requests)
+    status, solve_output = ilp.solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=model_args)
 
     if status == mip.OptimizationStatus.INFEASIBLE or status == mip.OptimizationStatus.NO_SOLUTION_FOUND:
         response = {'requester_sid': data['requester_sid']}
