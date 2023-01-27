@@ -11,7 +11,8 @@ from mip import Model, xsum, BINARY, INTEGER, minimize, maximize, OptimizationSt
 debug_print_variables = False
 
 
-def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=None) -> tuple[mip.OptimizationStatus, list[int]]:
+def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=None) -> tuple[
+    mip.OptimizationStatus, list[int]]:
     """
     Solves a material matching problem using integer linear programming
     :param str method: Goal definition used. Currently, may be 'default' (minimize stock pieces), 'waste' (minimize
@@ -307,3 +308,151 @@ def _solve_max(model, stock_lengths, part_lengths, part_requests):
     model.objective = maximize(xsum(score[i] for i in range(stock_count)))
 
     return model
+
+
+def _solve_homogenous(model, stock_lengths, part_lengths, part_requests):
+    def _solve_waste(model, stock_lengths, part_lengths, part_requests):
+        """
+        Optimizes for minimizing waste from used pieces
+        Does not attempt leftover usability
+        """
+        part_lengths = np.array(part_lengths)
+        part_count = len(part_lengths)
+
+        part_requests = np.array(part_requests)
+
+        stock_lengths = np.array(stock_lengths)
+        stock_count = len(stock_lengths)
+
+        # Variable : Amount of each part used in that piece
+        # Regarding the upper bound (ub) here:
+        # - Simplest : maximum of all part requests
+        # - Stock aware : max count is the floor of the longest stock divided by the smallest part
+        # - Item aware : The floor of the current stock length divided by the current part length
+        part_usage = {(i, j): model.add_var(var_type=INTEGER,
+                                            name="part_usage[%d,%d]" % (i, j),
+                                            lb=0,
+                                            ub=int(stock_lengths[j] / part_lengths[i]))
+                      for i in range(part_count) for j in range(stock_count)}
+
+        # Variable : Whether each part type appears in a particular stock piece
+        part_type_usage = {(i, j): model.add_var(var_type=BINARY,
+                                                 name="part_type_usage[%d,%d]" % (i, j))
+                           for i in range(part_count) for j in range(stock_count)}
+
+        # Constraint : Ensure enough parts are produced
+        for i in range(part_count):
+            model.add_constr(xsum(part_usage[i, j] * part_type_usage[i, j] for j in range(stock_count))
+                             ==
+                             part_requests[i])
+        # Constraint : Ensure the used amount of the bar is <= the usable amount of the bar (0 if unused)
+        # Note, the multiplication by stock_usage here prevents a var/var multiplication in the objective
+        for j in range(stock_count):
+            model.add_constr(xsum(part_lengths[i] * part_usage[i, j] * part_type_usage[i, j] for i in range(part_count))
+                             <=
+                             stock_lengths[j])
+
+        print(f"Model created with {len(model.vars)} variables and {len(model.constrs)} constraints")
+
+        model.objective = minimize(xsum(xsum(part_type_usage[i, j] for i in range(part_count))
+                                        for j in range(stock_count)))
+
+        return model
+
+
+def _solve_order(model, stock_lengths, part_lengths):
+    """
+    Optimizes for minimizing waste from used pieces
+    Does not attempt leftover usability
+    """
+    part_lengths = np.array(part_lengths)
+    part_count = len(part_lengths)
+
+    stock_lengths = np.array(stock_lengths)
+    stock_count = len(stock_lengths)
+
+    # Helper constant : If stock j starts at part i, it will be able to cover a total of n parts
+    stock_extents = []
+    stock_wastes = []
+    for j in range(stock_count):
+        stock_extents.append([])
+        stock_wastes.append([])
+        for i in range(part_count):
+            extent = 0
+            countdown = stock_lengths[j]
+            while (i + extent) < len(part_lengths) and countdown >= part_lengths[i + extent]:
+                countdown -= part_lengths[i + extent]
+                extent += 1
+            stock_wastes[-1].append(countdown)
+            stock_extents[-1].append(extent)
+    stock_extents = np.array(stock_extents)
+    stock_wastes = np.array(stock_wastes)
+    print(stock_extents)
+    print(stock_wastes)
+
+    # Variable : Boolean whether a particular stock starts at a particular part
+    stock_start = {(i, j): model.add_var(var_type=BINARY, name=f"stock_start[{i},{j}]")
+                   for i in range(part_count) for j in range(stock_count)}
+
+    # Constraint : Each stock piece can start at most one part
+    for i in range(part_count):
+        model.add_constr(xsum(stock_start[i, j] for j in range(stock_count)) <= 1)
+
+    # Constraint : Each part can start at most once
+    for j in range(stock_count):
+        model.add_constr(xsum(stock_start[i, j] for i in range(part_count)) <= 1)
+
+    # Constraint : The first part must be a start
+    model.add_constr(xsum(stock_start[0, j] for j in range(stock_count)) == 1)
+
+    # Constraint : Every stock start must come at the end of another
+    for i in range(1, part_count):
+        model.add_constr(i * xsum(stock_start[i, j] for j in range(stock_count))
+                         <=
+                         xsum(xsum(stock_start[i2, j] * stock_extents[j, i2] for i2 in range(i)) for j in
+                              range(stock_count)))
+        model.add_constr(i + ((1 - xsum(stock_start[i, j] for j in range(stock_count))) * part_count)
+                         >=
+                         xsum(xsum(stock_start[i2, j] * stock_extents[j, i2] for i2 in range(i)) for j in
+                              range(stock_count)))
+
+    # Constraint : Utilized stock must cover all parts
+    model.add_constr(xsum(xsum(stock_start[i, j] * stock_extents[j, i] for i in range(part_count)) for j in
+                          range(stock_count))
+                     ==
+                     part_count)
+
+    print(f"Model created with {len(model.vars)} variables and {len(model.constrs)} constraints")
+
+    #model.objective = minimize(xsum(xsum(stock_start[i, j] for i in range(part_count)) for j in range(stock_count)))
+    model.objective = minimize(xsum(xsum(stock_start[i, j] * stock_wastes[j, i] for i in range(part_count)) for j in range(stock_count)))
+
+    print()
+
+    return model
+
+
+def solve_order_demo():
+    stock_lengths = [10, 12, 16, 14, 14, 30, 12]
+    part_lengths = [5, 8, 4, 2, 1, 2, 4, 6, 5, 5, 5, 5, 5, 1, 3, 3, 4]
+
+    model = Model()
+    model.preprocess = 1
+    model = _solve_order(model, stock_lengths, part_lengths)
+    status: OptimizationStatus = model.optimize()
+
+    print('')
+    print(f"Optimization Status : {status}")
+
+    time.sleep(1)
+
+    output = [float(v.x) for v in model.vars]
+    output = np.array(output).reshape((len(part_lengths), len(stock_lengths)))
+    print("Output:")
+    print(output)
+    print("Objective: ")
+    print(model.objective_value)
+
+
+if __name__ == "__main__":
+    solve_order_demo()
