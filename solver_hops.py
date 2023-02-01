@@ -9,6 +9,7 @@ import scipy.optimize
 from flask import Flask
 
 import ilp
+import ilp_2d
 
 app = Flask(__name__)
 hops = hs.Hops(app)
@@ -32,6 +33,25 @@ hops = hs.Hops(app)
 def hops_ilp(method, stock_lengths, part_lengths, part_requests):
     status, output = ilp.solve_ilp(method, stock_lengths, part_lengths, part_requests)
     return output
+
+
+@hops.component(
+    "/hops_ilp_2d",
+    name="solve_2d",
+    description="Solve a 2d rectangle packing problem",
+    icon="examples/pointat.png",
+    inputs=[
+        hs.HopsNumber("PartWidths", "W", "Part Widths", hs.HopsParamAccess.LIST),
+        hs.HopsNumber("PartHeights", "H", "Part Heights", hs.HopsParamAccess.LIST),
+        hs.HopsNumber("StockWidth", "S", "Stock Width"),
+    ],
+    outputs=[
+        hs.HopsNumber("X", "X", "Groupings", hs.HopsParamAccess.LIST),
+    ]
+)
+def hops_ilp_2d(part_widths, part_heights, stock_width):
+    status, X = ilp_2d.solve_ilp_2d_roll_area(part_widths, part_heights, stock_width)
+    return X
 
 
 @hops.component(
