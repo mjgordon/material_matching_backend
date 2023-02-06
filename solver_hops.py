@@ -4,6 +4,7 @@ Used for local solving. Creates a hops-visible flask server, and calls the ilp f
 
 import ghhops_server as hs
 import rhino3dm
+import numpy as np
 import scipy.optimize
 
 from flask import Flask
@@ -50,7 +51,9 @@ def hops_ilp(method, stock_lengths, part_lengths, part_requests):
     ]
 )
 def hops_ilp_2d(part_widths, part_heights, stock_width):
-    status, X = ilp_2d.solve_ilp_2d_roll_area(part_widths, part_heights, stock_width)
+    #status, X = ilp_2d.solve_ilp_2d_roll_area(part_widths, part_heights, stock_width)
+    status, X = ilp_2d.solve_ilp_2d_roll(part_widths, part_heights, stock_width)
+    print(status)
     return X
 
 

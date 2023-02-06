@@ -1,0 +1,12 @@
+name: hops_solver
+channels:
+  - defaults
+dependencies:
+  - numpy=1.21
+  - scipy=1.7.3
+  - pip:
+    - flask==2.0.2
+    - ghhops_server==1.4.1
+    - mip==1.13.0
+    - psutil==5.9.4
+    - rhino3dm==7.11.1
