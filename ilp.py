@@ -138,7 +138,7 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
     """
 
     # log_string = "threads, mem, cpu, clique, cuts, lp_method, emphasis, preprocess, goal_method, state, objective, time"
-    log_string = str(model_args["id"]) + ","
+    log_string = (str(model_args["id"]) if "id" in model_args else "no_id") + ","
     log_string += str(multiprocessing.cpu_count()) + ","
     log_string += str(round(psutil.virtual_memory()[0] / math.pow(1024, 3), 2)) + ","
     log_string += str(psutil.cpu_freq()[0]) + ","
