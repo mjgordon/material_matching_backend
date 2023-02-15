@@ -40,6 +40,7 @@ def main():
     d_lp_method = [0, 1, 2, 3]
     e_preprocess = [-1, 0, 1]
 
+    """
     for aa in a_cliques:
         for ab in b_cuts:
             for ac in c_emphasis:
@@ -55,6 +56,8 @@ def main():
                                     "max_nodes": 10000,  # 10,000 - 100,000
                                     "max_seconds": 30}   # 30 - 300
                             items.append(item)
+    
+    
 
     print(f"Test run has {len(items)} items")
 
@@ -69,6 +72,23 @@ def main():
         solving_flag = True
         while solving_flag:
             time.sleep(0.1)
+    """
+
+    print(len(scenario_json["stock_lengths"]))
+
+    stock_lengths = scenario_json["stock_lengths"]
+    count = 0
+    for i in range(1,len(stock_lengths)):
+        for j in range(10):
+            scenario_json["model_args"] = {"id": count}
+            scenario_json["stock_lengths"] = stock_lengths[0:i]
+            sio.emit("solve_request",scenario_json)
+            print(f"{count} : {i}")
+            solving_flag = True
+            while solving_flag:
+                time.sleep(0.1)
+            count += 1
+
 
 
 @sio.event

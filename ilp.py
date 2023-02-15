@@ -91,10 +91,15 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
     # optimizing the model
     status: OptimizationStatus = model.optimize(max_nodes=max_nodes, max_seconds=max_seconds)
 
+    time_end = time.time()
+    time_elapsed = round(time_end - time_start, 3)
+
     print('')
     print(f"Optimization Status : {status}")
 
-    if status == OptimizationStatus.INFEASIBLE or status == OptimizationStatus.NO_SOLUTION_FOUND:
+    if status == OptimizationStatus.INFEASIBLE or status == OptimizationStatus.NO_SOLUTION_FOUND or status == OptimizationStatus.ERROR:
+        log_string = f"{(str(model_args['id']) if 'id' in model_args else 'no_id') },OptimizationStatus.INFEASIBLE,0,{time_elapsed}"
+        log_line(log_string, "log.csv")
         return status, [0]
 
     # printing the solution
@@ -113,8 +118,7 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
 
     output = [float(v.x) for v in model.vars]
 
-    time_end = time.time()
-    time_elapsed = round(time_end - time_start, 3)
+
 
     """
     CSV Record:
@@ -155,12 +159,20 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
     log_string += str(round(model.objective_value, 3)) + ","
     log_string += str(time_elapsed) + "\n"
 
-    log_filepath = model_args["log_filepath"] if "log_filepath" in model_args else "log.csv"
-    print(log_filepath)
-    with open(log_filepath, "a") as f:
-        f.write(log_string)
+    # Simplified log
+    log_string = f"{(str(model_args['id']) if 'id' in model_args else 'no_id') },{status},{round(model.objective_value,3)},{time_elapsed}"
+
+    log_line(log_string, "log.csv")
 
     return status, output
+
+
+def log_line(s, log_filepath):
+    s += "\n"
+    #log_filepath = model_args["log_filepath"] if "log_filepath" in model_args else "log.csv"
+    print(log_filepath)
+    with open(log_filepath, "a") as f:
+        f.write(s)
 
 
 def _solve_default(model, stock_lengths, part_lengths, part_requests):
