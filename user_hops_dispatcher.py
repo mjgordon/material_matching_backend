@@ -63,18 +63,20 @@ def solve_infeasible(data):
         hs.HopsString("Method", "M", "Method"),
         hs.HopsNumber("Stock", "S", "Stock Lengths", hs.HopsParamAccess.LIST),
         hs.HopsNumber("PartLengths", "P", "Part Lengths", hs.HopsParamAccess.LIST),
-        hs.HopsNumber("PartCounts", "C", "Part Counts", hs.HopsParamAccess.LIST)
+        hs.HopsNumber("PartCounts", "C", "Part Counts", hs.HopsParamAccess.LIST),
+        hs.HopsString("Name","N","Project or test name")
     ],
     outputs=[
         hs.HopsNumber("Selection", "S", "Solved Result", hs.HopsParamAccess.LIST)
     ]
 )
-def hops_ilp(method, stock_lengths, part_lengths, part_requests):
+def hops_ilp(method, stock_lengths, part_lengths, part_requests,name):
     global solving_flag
     sio.emit("solve_request", {'method': method,
                                'stock_lengths': stock_lengths,
                                'part_lengths': part_lengths,
-                               'part_requests': part_requests})
+                               'part_requests': part_requests,
+                               'model_args': {'log_filepath': f"logs/{name}.csv"}})
     solving_flag = True
     while solving_flag:
         time.sleep(0.1)
