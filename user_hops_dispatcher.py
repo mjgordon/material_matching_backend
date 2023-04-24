@@ -70,7 +70,7 @@ def solve_infeasible(data):
         hs.HopsNumber("Selection", "S", "Solved Result", hs.HopsParamAccess.LIST)
     ]
 )
-def hops_ilp(method, stock_lengths, part_lengths, part_requests,name):
+def hops_ilp(method, stock_lengths, part_lengths, part_requests, name):
     global solving_flag
     sio.emit("solve_request", {'method': method,
                                'stock_lengths': stock_lengths,

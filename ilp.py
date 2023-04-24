@@ -27,10 +27,13 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
     if model_args is None:
         model_args = {}
 
+    log_filepath = model_args["log_filepath"] if "log_filepath" in model_args else "log.csv"
+
     print(f"Method : {method}")
     print(f"{len(stock_lengths)} stock pieces between {np.min(stock_lengths)} and {np.max(stock_lengths)}")
     print(f"{len(part_lengths)} part types between {np.min(part_lengths)} and {np.max(part_lengths)}")
     print(f"{sum(part_requests)} total part requests")
+    print(f"Log filepath at : {log_filepath}")
     time_start = time.time()
     model = Model()
     model.max_mip_gap_abs = 1.5
@@ -99,7 +102,7 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
 
     if status == OptimizationStatus.INFEASIBLE or status == OptimizationStatus.NO_SOLUTION_FOUND or status == OptimizationStatus.ERROR:
         log_string = f"{(str(model_args['id']) if 'id' in model_args else 'no_id') },OptimizationStatus.INFEASIBLE,0,{time_elapsed}"
-        log_line(log_string, "log.csv")
+        log_line(log_string, log_filepath)
         return status, [0]
 
     # printing the solution
@@ -162,15 +165,13 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
     # Simplified log
     log_string = f"{(str(model_args['id']) if 'id' in model_args else 'no_id') },{status},{round(model.objective_value,3)},{time_elapsed}"
 
-    log_line(log_string, "log.csv")
+    log_line(log_string, log_filepath)
 
     return status, output
 
 
 def log_line(s, log_filepath):
     s += "\n"
-    #log_filepath = model_args["log_filepath"] if "log_filepath" in model_args else "log.csv"
-    print(log_filepath)
     with open(log_filepath, "a") as f:
         f.write(s)
 

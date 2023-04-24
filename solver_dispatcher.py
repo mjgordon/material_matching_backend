@@ -6,7 +6,6 @@ Receives solve requests and calls the ilp functions
 import argparse
 import datetime
 import mip
-import signal
 import socketio
 import sys
 

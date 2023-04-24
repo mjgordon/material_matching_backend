@@ -1,3 +1,7 @@
+"""
+Minimal SocketIO user client to test connection
+"""
+
 import socketio
 
 sio = socketio.Client()
@@ -6,7 +10,6 @@ sio = socketio.Client()
 def main():
     sio.connect('http://localhost:5000')
     default_message()
-    # sio.wait()
 
 
 @sio.event
