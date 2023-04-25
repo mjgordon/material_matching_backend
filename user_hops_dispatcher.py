@@ -4,6 +4,7 @@ requests from hops to the dispatcher
 """
 
 import argparse
+import json
 import ghhops_server as hs
 import rhino3dm
 import scipy.optimize
@@ -22,6 +23,8 @@ solving_flag: bool = False
 response_usage = None
 
 log_path: str = ""
+
+save_scenario = True
 
 
 def main():
@@ -61,7 +64,6 @@ def solve_infeasible(data):
     solving_flag = False
 
 
-
 @hops.component(
     "/hops_ilp",
     name="Solve",
@@ -72,7 +74,7 @@ def solve_infeasible(data):
         hs.HopsNumber("Stock", "S", "Stock Lengths", hs.HopsParamAccess.LIST),
         hs.HopsNumber("PartLengths", "P", "Part Lengths", hs.HopsParamAccess.LIST),
         hs.HopsNumber("PartCounts", "C", "Part Counts", hs.HopsParamAccess.LIST),
-        hs.HopsString("Name","N","Project or test name")
+        hs.HopsString("Name", "N", "Project or test name")
     ],
     outputs=[
         hs.HopsNumber("Selection", "S", "Solved Result", hs.HopsParamAccess.LIST)
@@ -87,6 +89,16 @@ def hops_ilp(method, stock_lengths, part_lengths, part_requests, name):
                                'model_args': {'log_filepath': f"logs/{name}.csv"}})
     log_path = f"logs/{name}.csv"
     solving_flag = True
+
+    if save_scenario:
+        output_dict = {"name": name,
+                       "method": method,
+                       "stock_lengths": stock_lengths,
+                       "part_lengths": part_lengths,
+                       "part_requests": part_requests}
+        with open("scenarios/scenario.json", 'w') as f:
+            json.dump(output_dict, f)
+
     while solving_flag:
         time.sleep(0.1)
 

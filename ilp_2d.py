@@ -1,4 +1,6 @@
 """
+Implementation of 2D Cutting Stock Problem using Integer Linear Programming
+
 Additions:
 Objective that considers end of strip waste
 Objective taht considers waste above each part

@@ -1,3 +1,8 @@
+"""
+Test implementation involving 'illegal' assignment based on structural unsuitability
+Integrate in to main module
+"""
+
 from flask import Flask
 import ghhops_server as hs
 
@@ -20,8 +25,8 @@ print_variables = False
     description="Solve the ILP Problem",
     icon="examples/pointat.png",
     inputs=[
-        hs.HopsString("Method","M","Method"),
-        hs.HopsNumber("Stock","S","Stock Lengths", hs.HopsParamAccess.LIST),
+        hs.HopsString("Method", "M", "Method"),
+        hs.HopsNumber("Stock", "S", "Stock Lengths", hs.HopsParamAccess.LIST),
         hs.HopsNumber("PartLengths","P","Part Lengths", hs.HopsParamAccess.LIST),
         hs.HopsNumber("PartCounts","C","Part Counts", hs.HopsParamAccess.LIST),
         hs.HopsNumber("PartRejections","R","Part Rejections", hs.HopsParamAccess.LIST)

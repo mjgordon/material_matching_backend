@@ -1,3 +1,8 @@
+"""
+Implementation of 1D Cutting Stock Problem using Integer Linear Programming
+Agnostic to caller
+"""
+
 import json
 import math
 import mip
@@ -95,8 +100,21 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
     if "max_seconds" in model_args:
         max_seconds = int(model_args["max_seconds"])
 
+    max_nodes_same_incumbent = 1073741824
+    if "max_nodes_same_incumbent" in model_args:
+        max_nodes_same_incumbent = int(model_args["max_nodes_same_incumbent"])
+
+    max_seconds_same_incumbent = float('inf')
+    if "max_seconds_same_incumbent" in model_args:
+        max_seconds_same_incumbent = int(model_args["max_seconds_same_incumbent"])
+
+
+
     # optimizing the model
-    status: OptimizationStatus = model.optimize(max_nodes=max_nodes, max_seconds=max_seconds)
+    status: OptimizationStatus = model.optimize(max_nodes=max_nodes,
+                                                max_seconds=max_seconds,
+                                                max_nodes_same_incumbent=max_nodes_same_incumbent,
+                                                max_seconds_same_incumbent=max_seconds_same_incumbent)
 
     time_end = time.time()
     time_elapsed = round(time_end - time_start, 3)

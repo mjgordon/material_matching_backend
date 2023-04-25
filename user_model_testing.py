@@ -12,9 +12,11 @@ sio = socketio.Client()
 
 solving_flag: bool = False
 
+log_path = ""
+
 
 def main():
-    global solving_flag
+    global solving_flag, log_path
 
     parser = argparse.ArgumentParser(description='Give dispatcher IP address')
     parser.add_argument("-i", "--ip")
@@ -29,9 +31,11 @@ def main():
     if "file" in args:
         filepath = args["file"]
     else:
-        filepath = "scenarios/scenario.json"
+        filepath = "scenarios/scenario_waste_timing.json"
     with open(filepath) as file:
         scenario_json = json.load(file)
+
+    log_path = f"logs/{scenario_json['name']}.csv"
 
     items = []
     a_cliques = [-1, 0, 1, 2]
@@ -80,7 +84,9 @@ def main():
     count = 0
     for i in range(1,len(stock_lengths)):
         for j in range(10):
-            scenario_json["model_args"] = {"id": count}
+            scenario_json["model_args"] = {"id": count,
+                                           "max_nodes": 1073741824,
+                                           "max_seconds": 1073741824}
             scenario_json["stock_lengths"] = stock_lengths[0:i]
             sio.emit("solve_request",scenario_json)
             print(f"{count} : {i}")
@@ -101,6 +107,9 @@ def connect():
 def solve_response(data):
     global solving_flag
     solving_flag = False
+    log_string = data["log_string"] + "\n"
+    with open(log_path, "a") as f:
+        f.write(log_string)
     print("Received solve response")
 
 
@@ -108,6 +117,9 @@ def solve_response(data):
 def solve_infeasible(data):
     global solving_flag
     print("Infeasible")
+    log_string = data["log_string"] + "\n"
+    with open(log_path, "a") as f:
+        f.write(log_string)
     solving_flag = False
 
 
