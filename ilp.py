@@ -12,7 +12,7 @@ debug_print_variables = False
 
 
 def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=None) -> tuple[
-    mip.OptimizationStatus, list[int]]:
+    mip.OptimizationStatus, list[int], str]:
     """
     Solves a material matching problem using integer linear programming
     :param str method: Goal definition used. Currently, may be 'default' (minimize stock pieces), 'waste' (minimize
@@ -28,6 +28,7 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
         model_args = {}
 
     log_filepath = model_args["log_filepath"] if "log_filepath" in model_args else "log.csv"
+    log_string = ""
 
     print(f"Method : {method}")
     print(f"{len(stock_lengths)} stock pieces between {np.min(stock_lengths)} and {np.max(stock_lengths)}")
@@ -78,7 +79,10 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
         solve_function = _solve_max
     else:
         print(f"Bad method argument '{method}'")
-        return OptimizationStatus.NO_SOLUTION_FOUND, [0]
+        log_string = f"{(str(model_args['id']) if 'id' in model_args else 'no_id')},{mip.OptimizationStatus.ERROR},{-1},{0}"
+
+        log_line(log_string, log_filepath)
+        return OptimizationStatus.NO_SOLUTION_FOUND, [0], log_string
 
     model = solve_function(model, stock_lengths, part_lengths, part_requests)
     model.threads = -1
@@ -103,7 +107,7 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
     if status == OptimizationStatus.INFEASIBLE or status == OptimizationStatus.NO_SOLUTION_FOUND or status == OptimizationStatus.ERROR:
         log_string = f"{(str(model_args['id']) if 'id' in model_args else 'no_id') },OptimizationStatus.INFEASIBLE,0,{time_elapsed}"
         log_line(log_string, log_filepath)
-        return status, [0]
+        return status, [0], log_string
 
     # printing the solution
 
@@ -167,7 +171,7 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
 
     log_line(log_string, log_filepath)
 
-    return status, output
+    return status, output, log_string
 
 
 def log_line(s, log_filepath):

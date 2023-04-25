@@ -58,14 +58,14 @@ def solve_request(data):
     part_requests = [int(n) for n in data["part_requests"]]
     model_args = data["model_args"] if "model_args" in data else {}
 
-    status, solve_output = ilp.solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=model_args)
+    status, solve_output, log_string = ilp.solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=model_args)
 
     if status == mip.OptimizationStatus.INFEASIBLE or status == mip.OptimizationStatus.NO_SOLUTION_FOUND or status == mip.OptimizationStatus.ERROR:
-        response = {'requester_sid': data['requester_sid']}
+        response = {'requester_sid': data['requester_sid'], 'log_string': log_string}
         sio.emit("solve_infeasible", response)
     else:
         solve_output = solve_output[0:-len(stock_lengths)]
-        response = {'requester_sid': data['requester_sid'], 'usage': solve_output}
+        response = {'requester_sid': data['requester_sid'], 'usage': solve_output, 'log_string': log_string}
         sio.emit("solve_response", response)
 
 

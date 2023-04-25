@@ -21,6 +21,8 @@ sio = socketio.Client()
 solving_flag: bool = False
 response_usage = None
 
+log_path: str = ""
+
 
 def main():
     parser = argparse.ArgumentParser(description='Give dispatcher IP address')
@@ -41,8 +43,11 @@ def connect():
 
 @sio.on('solve_response')
 def solve_response(data):
-    global response_usage, solving_flag
+    global response_usage, solving_flag, log_path
     response_usage = data["usage"]
+    log_string = data["log_string"] + "\n"
+    with open(log_path, "a") as f:
+        f.write(log_string)
     solving_flag = False
 
 
@@ -50,6 +55,9 @@ def solve_response(data):
 def solve_infeasible(data):
     global solving_flag
     print("Infeasible")
+    log_string = data["log_string"] + "\n"
+    with open(log_path, "a") as f:
+        f.write(log_string)
     solving_flag = False
 
 
@@ -71,12 +79,13 @@ def solve_infeasible(data):
     ]
 )
 def hops_ilp(method, stock_lengths, part_lengths, part_requests, name):
-    global solving_flag
+    global solving_flag, log_path
     sio.emit("solve_request", {'method': method,
                                'stock_lengths': stock_lengths,
                                'part_lengths': part_lengths,
                                'part_requests': part_requests,
                                'model_args': {'log_filepath': f"logs/{name}.csv"}})
+    log_path = f"logs/{name}.csv"
     solving_flag = True
     while solving_flag:
         time.sleep(0.1)
