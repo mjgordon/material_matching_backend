@@ -82,13 +82,14 @@ def main():
 
     stock_lengths = scenario_json["stock_lengths"]
     count = 0
-    for i in range(1,len(stock_lengths)):
+    for i in range(1, len(stock_lengths)):
         for j in range(10):
             scenario_json["model_args"] = {"id": count,
                                            "max_nodes": 1073741824,
-                                           "max_seconds": 1073741824}
-            scenario_json["stock_lengths"] = stock_lengths[0:i]
-            sio.emit("solve_request",scenario_json)
+                                           "max_seconds": 300,
+                                           "max_nodes_same_incumbent": 10000}
+            scenario_json["stock_lengths"] = stock_lengths[0:len(stock_lengths) - i]
+            sio.emit("solve_request", scenario_json)
             print(f"{count} : {i}")
             solving_flag = True
             while solving_flag:

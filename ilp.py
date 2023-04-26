@@ -82,6 +82,10 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
         solve_function = _solve_waste
     elif method == "max":
         solve_function = _solve_max
+    elif method == "order":
+        solve_function = _solve_order
+    elif method == "homogenous":
+        solve_function = _solve_homogenous
     else:
         print(f"Bad method argument '{method}'")
         log_string = f"{(str(model_args['id']) if 'id' in model_args else 'no_id')},{mip.OptimizationStatus.ERROR},{-1},{0}"
@@ -212,10 +216,12 @@ def _solve_default(model, stock_lengths, part_lengths, part_requests):
     stock_lengths = np.array(stock_lengths)
     stock_count = len(stock_lengths)
 
-    max_parts = np.max(part_requests)
-
     # Amount of each part used in that piece
-    part_usage = {(i, j): model.add_var(obj=0, var_type=INTEGER, name="part_usage[%d,%d]" % (i, j), lb=0, ub=max_parts)
+    part_usage = {(i, j): model.add_var(obj=0,
+                                        var_type=INTEGER,
+                                        name="part_usage[%d,%d]" % (i, j),
+                                        lb=0,
+                                        ub=int(stock_lengths[j] / part_lengths[i]))
                   for i in range(part_count) for j in range(stock_count)}
     # Whether the piece is used
     stock_usage = {j: model.add_var(obj=1, var_type=BINARY, name="stock_usage[%d]" % j)
@@ -306,11 +312,11 @@ def _solve_max(model, stock_lengths, part_lengths, part_requests):
     stock_lengths = np.array(stock_lengths)
     stock_count = len(stock_lengths)
 
-    max_parts = np.max(part_requests)
-    largest_stock = np.max(stock_lengths)
-
     # Amount of each part used in that piece
-    part_usage = {(i, j): model.add_var(var_type=INTEGER, name="part_usage[%d,%d]" % (i, j), lb=0, ub=max_parts)
+    part_usage = {(i, j): model.add_var(var_type=INTEGER,
+                                        name="part_usage[%d,%d]" % (i, j),
+                                        lb=0,
+                                        ub=int(stock_lengths[j] / part_lengths[i]))
                   for i in range(part_count) for j in range(stock_count)}
 
     # Constraint : Ensure enough parts are produced
@@ -400,7 +406,7 @@ def _solve_homogenous(model, stock_lengths, part_lengths, part_requests):
     return model
 
 
-def _solve_order(model, stock_lengths, part_lengths):
+def _solve_order(model, stock_lengths, part_lengths, _):
     """
     Optimizes for minimizing waste from used pieces
     Does not attempt leftover usability

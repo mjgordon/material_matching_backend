@@ -24,7 +24,7 @@ response_usage = None
 
 log_path: str = ""
 
-save_scenario = True
+save_scenario = False
 
 
 def main():
