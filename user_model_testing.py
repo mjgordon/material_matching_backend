@@ -31,7 +31,7 @@ def main():
     if "file" in args:
         filepath = args["file"]
     else:
-        filepath = "scenarios/scenario_waste_timing.json"
+        filepath = "scenarios/scenario_test_inventory.json"
     with open(filepath) as file:
         scenario_json = json.load(file)
 
@@ -83,7 +83,7 @@ def main():
     stock_lengths = scenario_json["stock_lengths"]
     count = 0
     for i in range(1, len(stock_lengths)):
-        for j in range(10):
+        for j in range(1):
             scenario_json["model_args"] = {"id": count,
                                            "max_nodes": 1073741824,
                                            "max_seconds": 300,

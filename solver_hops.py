@@ -25,15 +25,17 @@ hops = hs.Hops(app)
         hs.HopsString("Method", "M", "Method"),
         hs.HopsNumber("Stock", "S", "Stock Lengths", hs.HopsParamAccess.LIST),
         hs.HopsNumber("PartLengths", "P", "Part Lengths", hs.HopsParamAccess.LIST),
-        hs.HopsNumber("PartCounts", "C", "Part Counts", hs.HopsParamAccess.LIST)
+        hs.HopsNumber("PartCounts", "C", "Part Counts", hs.HopsParamAccess.LIST),
+        hs.HopsString("Name", "N", "Project or test name")
     ],
     outputs=[
-        hs.HopsNumber("Selection", "S", "Solved Result", hs.HopsParamAccess.LIST)
+        hs.HopsNumber("Selection", "S", "Solved Result", hs.HopsParamAccess.LIST),
+        hs.HopsString("Log","L","Log String")
     ]
 )
-def hops_ilp(method, stock_lengths, part_lengths, part_requests):
-    status, output = ilp.solve_ilp(method, stock_lengths, part_lengths, part_requests)
-    return output
+def hops_ilp(method, stock_lengths, part_lengths, part_requests,name):
+    status, output, log = ilp.solve_ilp(method, stock_lengths, part_lengths, part_requests)
+    return output, log
 
 
 @hops.component(

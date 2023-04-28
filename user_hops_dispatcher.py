@@ -26,6 +26,8 @@ log_path: str = ""
 
 save_scenario = False
 
+log_string = ""
+
 
 def main():
     parser = argparse.ArgumentParser(description='Give dispatcher IP address')
@@ -46,7 +48,7 @@ def connect():
 
 @sio.on('solve_response')
 def solve_response(data):
-    global response_usage, solving_flag, log_path
+    global response_usage, solving_flag, log_path,log_string
     response_usage = data["usage"]
     log_string = data["log_string"] + "\n"
     with open(log_path, "a") as f:
@@ -56,7 +58,7 @@ def solve_response(data):
 
 @sio.on('solve_infeasible')
 def solve_infeasible(data):
-    global solving_flag
+    global solving_flag,log_string
     print("Infeasible")
     log_string = data["log_string"] + "\n"
     with open(log_path, "a") as f:
@@ -77,16 +79,19 @@ def solve_infeasible(data):
         hs.HopsString("Name", "N", "Project or test name")
     ],
     outputs=[
-        hs.HopsNumber("Selection", "S", "Solved Result", hs.HopsParamAccess.LIST)
+        hs.HopsNumber("Selection", "S", "Solved Result", hs.HopsParamAccess.LIST),
+        hs.HopsString("Log","L","Log String")
     ]
 )
 def hops_ilp(method, stock_lengths, part_lengths, part_requests, name):
-    global solving_flag, log_path
+    global solving_flag, log_path, log_strings
     sio.emit("solve_request", {'method': method,
                                'stock_lengths': stock_lengths,
                                'part_lengths': part_lengths,
                                'part_requests': part_requests,
-                               'model_args': {'log_filepath': f"logs/{name}.csv"}})
+                               'model_args': {'log_filepath': f"logs/{name}.csv",
+                                              'max_nodes': 100000,
+                                              'max_seconds': 120}})
     log_path = f"logs/{name}.csv"
     solving_flag = True
 
@@ -102,7 +107,7 @@ def hops_ilp(method, stock_lengths, part_lengths, part_requests, name):
     while solving_flag:
         time.sleep(0.1)
 
-    return response_usage
+    return response_usage,log_string
 
 
 @hops.component(

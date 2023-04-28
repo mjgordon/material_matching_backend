@@ -188,8 +188,55 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
     log_string += str(round(model.objective_value, 3)) + ","
     log_string += str(time_elapsed) + "\n"
 
+    value_waste = -1
+    value_score = -1
+
+    waste_total = 0
+    score_total = 0
+
+    # Reconstructing objectives
+    if method in ["default","waste","max","homogenous"]:
+        part_count = len(part_lengths)
+        stock_count = len(stock_lengths)
+        x = np.array([float(n) for n in model.vars[0:len(stock_lengths) * part_count]])
+        x = x.reshape([part_count,stock_count])
+        x = x.transpose()
+        x = x.flatten()
+        y = np.array([float(n) for n in model.vars[len(x):len(x) + stock_count]])
+        print("Reconstructing values test")
+        print(len(x))
+        print(len(y))
+
+        np_stock = np.array([float(n) for n in stock_lengths])
+        np_part_lengths = np.array([float(n) for n in part_lengths])
+
+
+        if method == "max":
+            for i in range(stock_count):
+                usage = np.sum(x[i * part_count: (i + 1) * part_count] * np_part_lengths) * y[i]
+                available = stock_lengths[i] * (usage > 0)
+                waste_total += available - usage
+
+                score_total += (stock_lengths[i] - usage) ** 2
+        else:
+            for i in range(stock_count):
+                usage = np.sum(x[i * part_count: (i + 1) * part_count] * np_part_lengths) * y[i]
+                available = stock_lengths[i] * y[i]
+                waste_total += available - usage
+
+                score_total += (stock_lengths[i] - usage) ** 2
+
+        print(waste_total)
+        print(score_total)
+
+    waste_total = 0
+    score_total = 0
+
+
+
+
     # Simplified log
-    log_string = f"{(str(model_args['id']) if 'id' in model_args else 'no_id') },{status},{round(model.objective_value,3)},{time_elapsed}"
+    log_string = f"{(str(model_args['id']) if 'id' in model_args else 'no_id') },{status},{round(model.objective_value,3)},{time_elapsed},{waste_total},{score_total}"
 
     log_line(log_string, log_filepath)
 
