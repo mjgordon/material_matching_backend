@@ -194,6 +194,8 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
     waste_total = 0
     score_total = 0
 
+
+
     # Reconstructing objectives
     if method in ["default","waste","max","homogenous"]:
         part_count = len(part_lengths)
@@ -203,13 +205,9 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
         x = x.transpose()
         x = x.flatten()
         y = np.array([float(n) for n in model.vars[len(x):len(x) + stock_count]])
-        print("Reconstructing values test")
-        print(len(x))
-        print(len(y))
 
         np_stock = np.array([float(n) for n in stock_lengths])
         np_part_lengths = np.array([float(n) for n in part_lengths])
-
 
         if method == "max":
             for i in range(stock_count):
@@ -225,15 +223,6 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
                 waste_total += available - usage
 
                 score_total += (stock_lengths[i] - usage) ** 2
-
-        print(waste_total)
-        print(score_total)
-
-    waste_total = 0
-    score_total = 0
-
-
-
 
     # Simplified log
     log_string = f"{(str(model_args['id']) if 'id' in model_args else 'no_id') },{status},{round(model.objective_value,3)},{time_elapsed},{waste_total},{score_total}"
