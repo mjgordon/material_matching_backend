@@ -96,7 +96,7 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
     model = solve_function(model, stock_lengths, part_lengths, part_requests)
     model.threads = -1
 
-    max_nodes = 10000
+    max_nodes = 10001
     if "max_nodes" in model_args:
         max_nodes = int(model_args["max_nodes"])
     print(f"Max Nodes : {max_nodes}")
@@ -207,7 +207,8 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
         x = x.flatten()
 
         if method == 'homogenous' or method == 'max':
-            y = np.sum(x, axis=0) > 0
+            x2 = np.array([float(n) for n in model.vars[0:len(stock_lengths) * part_count]]).reshape([part_count,stock_count])
+            y = np.sum(x2, axis=0) > 0
             print(x)
             print(y)
         else:
