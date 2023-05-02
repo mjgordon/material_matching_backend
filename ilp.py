@@ -209,7 +209,7 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
         if method == 'homogenous' or method == 'max':
             x2 = np.array([float(n) for n in model.vars[0:len(stock_lengths) * part_count]]).reshape([part_count,stock_count])
             y = np.sum(x2, axis=0) > 0
-            print(x)
+            print(x2)
             print(y)
         else:
             y = np.array([float(n) for n in model.vars[len(x):len(x) + stock_count]])
