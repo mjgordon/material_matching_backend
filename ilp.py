@@ -209,27 +209,19 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
         if method == 'homogenous' or method == 'max':
             x2 = np.array([float(n) for n in model.vars[0:len(stock_lengths) * part_count]]).reshape([part_count,stock_count])
             y = np.sum(x2, axis=0) > 0
-            print(x2)
-            print(y)
         else:
             y = np.array([float(n) for n in model.vars[len(x):len(x) + stock_count]])
 
         np_stock = np.array([float(n) for n in stock_lengths])
         np_part_lengths = np.array([float(n) for n in part_lengths])
 
-        if method == "max":
-            for i in range(stock_count):
-                usage = np.sum(x[i * part_count: (i + 1) * part_count] * np_part_lengths) * y[i]
-                available = stock_lengths[i] * (usage > 0)
-                waste_total += available - usage
-                score_total += (stock_lengths[i] - usage) ** 2
-        else:
-            for i in range(stock_count):
-                usage = np.sum(x[i * part_count: (i + 1) * part_count] * np_part_lengths) * y[i]
-                available = stock_lengths[i] * y[i]
-                waste_total += available - usage
+        for i in range(stock_count):
+            usage = np.sum(x[i * part_count: (i + 1) * part_count] * np_part_lengths) * y[i]
+            available = stock_lengths[i] * y[i]
+            waste_total += available - usage
 
-                score_total += (stock_lengths[i] - usage) ** 2
+            score_total += (stock_lengths[i] - usage) ** 2
+
 
     # Simplified log
     log_string = f"{(str(model_args['id']) if 'id' in model_args else 'no_id') },{status},{round(model.objective_value,3)},{time_elapsed},{waste_total},{score_total}"
