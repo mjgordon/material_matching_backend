@@ -90,8 +90,8 @@ def hops_ilp(method, stock_lengths, part_lengths, part_requests, name):
                                'part_lengths': part_lengths,
                                'part_requests': part_requests,
                                'model_args': {'log_filepath': f"logs/{name}.csv",
-                                              'max_nodes': 100000,
-                                              'max_seconds': 120}})
+                                              #'max_nodes': 100000,
+                                              'max_seconds': 300}})
     log_path = f"logs/{name}.csv"
     solving_flag = True
 

@@ -204,7 +204,11 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
         x = x.reshape([part_count,stock_count])
         x = x.transpose()
         x = x.flatten()
-        y = np.array([float(n) for n in model.vars[len(x):len(x) + stock_count]])
+
+        if method == 'homogenous' or method == 'max':
+            y = np.sum(x, axis=0) > 0
+        else:
+            y = np.array([float(n) for n in model.vars[len(x):len(x) + stock_count]])
 
         np_stock = np.array([float(n) for n in stock_lengths])
         np_part_lengths = np.array([float(n) for n in part_lengths])
@@ -214,7 +218,6 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
                 usage = np.sum(x[i * part_count: (i + 1) * part_count] * np_part_lengths) * y[i]
                 available = stock_lengths[i] * (usage > 0)
                 waste_total += available - usage
-
                 score_total += (stock_lengths[i] - usage) ** 2
         else:
             for i in range(stock_count):
@@ -539,6 +542,9 @@ def _demo_homogenous():
     output_s = output[offset:offset * 2].reshape(shape)
     print("Output S:")
     print(output_s)
+
+    y = np.sum(output_x,axis=0) > 0
+    print(y)
 
     print("Objective: ")
     print(model.objective_value)
