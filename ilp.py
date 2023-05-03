@@ -84,6 +84,8 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
         solve_function = _solve_max
     elif method == "order":
         solve_function = _solve_order
+        part_lengths = np.repeat(part_lengths,part_requests,axis =0)
+        print(f"Part count new : {len(part_lengths)}")
     elif method == "homogenous":
         solve_function = _solve_homogenous
     else:
