@@ -93,7 +93,7 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
         log_line(log_string, log_filepath)
         return OptimizationStatus.NO_SOLUTION_FOUND, [0], log_string
 
-    model = solve_function(model, stock_lengths, part_lengths, part_requests)
+    model, extra = solve_function(model, stock_lengths, part_lengths, part_requests)
     model.threads = -1
 
     max_nodes = 10001
@@ -113,8 +113,6 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
     if "max_seconds_same_incumbent" in model_args:
         max_seconds_same_incumbent = int(model_args["max_seconds_same_incumbent"])
 
-
-
     # optimizing the model
     status: OptimizationStatus = model.optimize(max_nodes=max_nodes,
                                                 max_seconds=max_seconds,
@@ -128,7 +126,7 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
     print(f"Optimization Status : {status}")
 
     if status == OptimizationStatus.INFEASIBLE or status == OptimizationStatus.NO_SOLUTION_FOUND or status == OptimizationStatus.ERROR:
-        log_string = f"{(str(model_args['id']) if 'id' in model_args else 'no_id') },OptimizationStatus.INFEASIBLE,0,{time_elapsed}"
+        log_string = f"{(str(model_args['id']) if 'id' in model_args else 'no_id')},{status},0,{time_elapsed}"
         log_line(log_string, log_filepath)
         return status, [0], log_string
 
@@ -147,8 +145,6 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
     print(model.objective_bound)
 
     output = [float(v.x) for v in model.vars]
-
-
 
     """
     CSV Record:
@@ -195,19 +191,18 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
     waste_total = 0
     score_total = 0
 
-
-
     # Reconstructing objectives
-    if method in ["default","waste","max","homogenous"]:
+    if method in ["default", "waste", "max", "homogenous"]:
         part_count = len(part_lengths)
         stock_count = len(stock_lengths)
         x = np.array([float(n) for n in model.vars[0:len(stock_lengths) * part_count]])
-        x = x.reshape([part_count,stock_count])
+        x = x.reshape([part_count, stock_count])
         x = x.transpose()
         x = x.flatten()
 
         if method == 'homogenous' or method == 'max':
-            x2 = np.array([float(n) for n in model.vars[0:len(stock_lengths) * part_count]]).reshape([part_count,stock_count])
+            x2 = np.array([float(n) for n in model.vars[0:len(stock_lengths) * part_count]]).reshape(
+                [part_count, stock_count])
             y = np.sum(x2, axis=0) > 0
         else:
             y = np.array([float(n) for n in model.vars[len(x):len(x) + stock_count]])
@@ -221,10 +216,22 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
             waste_total += available - usage
 
             score_total += (stock_lengths[i] - usage) ** 2
+    elif method == 'order':
+        waste_values = extra
 
+        output = np.array(output).reshape((len(part_lengths), len(stock_lengths)))
+        output = output.transpose()
+
+        waste_total = np.sum(waste_values * output)
+
+        waste_array = np.sum(waste_values * output, axis=1)
+        leftover_array = np.maximum(waste_array, np.array(stock_lengths) * (1 - waste_array))
+        leftover_array = leftover_array * leftover_array
+
+        score_total = np.sum(leftover_array)
 
     # Simplified log
-    log_string = f"{(str(model_args['id']) if 'id' in model_args else 'no_id') },{status},{round(model.objective_value,3)},{time_elapsed},{waste_total},{score_total}"
+    log_string = f"{(str(model_args['id']) if 'id' in model_args else 'no_id')},{status},{round(model.objective_value, 3)},{time_elapsed},{waste_total},{score_total}"
 
     log_line(log_string, log_filepath)
 
@@ -279,7 +286,7 @@ def _solve_default(model, stock_lengths, part_lengths, part_requests):
 
     model.objective = minimize(xsum(stock_usage[i] for i in range(stock_count)))
 
-    return model
+    return model, None
 
 
 def _solve_waste(model, stock_lengths, part_lengths, part_requests):
@@ -328,7 +335,7 @@ def _solve_waste(model, stock_lengths, part_lengths, part_requests):
                                     xsum((part_lengths[i] * part_usage[i, j]) for i in range(part_count))
                                     for j in range(stock_count)))
 
-    return model
+    return model, None
 
 
 def _solve_max(model, stock_lengths, part_lengths, part_requests):
@@ -383,7 +390,7 @@ def _solve_max(model, stock_lengths, part_lengths, part_requests):
 
     model.objective = maximize(xsum(score[i] for i in range(stock_count)))
 
-    return model
+    return model, None
 
 
 def _solve_homogenous(model, stock_lengths, part_lengths, part_requests):
@@ -438,7 +445,7 @@ def _solve_homogenous(model, stock_lengths, part_lengths, part_requests):
     model.objective = minimize(xsum(xsum(part_type_usage[i, j] for i in range(part_count))
                                     for j in range(stock_count)))
 
-    return model
+    return model, None
 
 
 def _solve_order(model, stock_lengths, part_lengths, _):
@@ -511,7 +518,7 @@ def _solve_order(model, stock_lengths, part_lengths, _):
 
     print()
 
-    return model
+    return model, stock_wastes
 
 
 def _demo_homogenous():
@@ -539,7 +546,7 @@ def _demo_homogenous():
     print("Output S:")
     print(output_s)
 
-    y = np.sum(output_x,axis=0) > 0
+    y = np.sum(output_x, axis=0) > 0
     print(y)
 
     print("Objective: ")
@@ -552,7 +559,7 @@ def _demo_order():
 
     model = Model()
     model.preprocess = 1
-    model = _solve_order(model, stock_lengths, part_lengths)
+    model, extra = _solve_order(model, stock_lengths, part_lengths, None)
     status: OptimizationStatus = model.optimize()
 
     print('')
@@ -560,12 +567,24 @@ def _demo_order():
 
     output = [float(v.x) for v in model.vars]
     output = np.array(output).reshape((len(part_lengths), len(stock_lengths)))
+    output = output.transpose()
     print("Output:")
     print(output)
     print("Objective: ")
     print(model.objective_value)
 
+    print('Waste matrix: ')
+    print(extra)
+
+    waste_array = np.sum(output * extra, axis = 1)
+    leftover_array = np.maximum(waste_array, np.array(stock_lengths) * (1-waste_array) )
+    leftover_array = leftover_array * leftover_array
+
+    print(waste_array)
+    print(leftover_array)
+    print(leftover_array.sum())
+
 
 if __name__ == "__main__":
-    # solve_order_demo()
-    _demo_homogenous()
+    _demo_order()
+    # _demo_homogenous()

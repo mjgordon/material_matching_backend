@@ -60,6 +60,8 @@ def solve_response(data):
 def solve_infeasible(data):
     global solving_flag,log_string
     print("Infeasible")
+    print("Data : ")
+    print(data)
     log_string = data["log_string"] + "\n"
     with open(log_path, "a") as f:
         f.write(log_string)
@@ -90,7 +92,7 @@ def hops_ilp(method, stock_lengths, part_lengths, part_requests, name):
                                'part_lengths': part_lengths,
                                'part_requests': part_requests,
                                'model_args': {'log_filepath': f"logs/{name}.csv",
-                                              #'max_nodes': 100000,
+                                              'max_nodes': 100000,
                                               'max_seconds': 300}})
     log_path = f"logs/{name}.csv"
     solving_flag = True
