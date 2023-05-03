@@ -228,7 +228,7 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
         leftover_array = np.maximum(waste_array, np.array(stock_lengths) * (1 - waste_array))
         leftover_array = leftover_array * leftover_array
 
-        score_total = np.sum(leftover_array)
+        score_total = leftover_array.sum()
 
     # Simplified log
     log_string = f"{(str(model_args['id']) if 'id' in model_args else 'no_id')},{status},{round(model.objective_value, 3)},{time_elapsed},{waste_total},{score_total}"

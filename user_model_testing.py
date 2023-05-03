@@ -82,7 +82,7 @@ def main():
 
     stock_lengths = scenario_json["stock_lengths"]
     count = 0
-    for i in range(74, len(stock_lengths)):
+    for i in range(0, len(stock_lengths)):
         for j in range(1):
             scenario_json["model_args"] = {"id": i, # set back to count if j > 1
                                            "max_nodes": 1073741824,
