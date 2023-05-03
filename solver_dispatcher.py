@@ -64,8 +64,10 @@ def solve_request(data):
         response = {'requester_sid': data['requester_sid'], 'log_string': log_string}
         sio.emit("solve_infeasible", response)
     else:
-        solve_output = solve_output[0:-len(stock_lengths)]
+        if method != 'order':
+            solve_output = solve_output[0:-len(stock_lengths)]
         response = {'requester_sid': data['requester_sid'], 'usage': solve_output, 'log_string': log_string}
+
         sio.emit("solve_response", response)
 
 

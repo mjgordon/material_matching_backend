@@ -219,20 +219,16 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
     elif method == 'order':
         waste_values = extra
 
-        output = np.array(output).reshape((len(part_lengths), len(stock_lengths)))
-        output = output.transpose()
+        usage = np.array(output).reshape((len(part_lengths), len(stock_lengths)))
+        usage = usage.transpose()
 
-        waste_total = np.sum(waste_values * output)
+        waste_total = np.sum(waste_values * usage)
 
-        print(f"Waste total : {waste_total}")
-
-        waste_array = np.sum(waste_values * output, axis=1)
+        waste_array = np.sum(waste_values * usage, axis=1)
         leftover_array = np.maximum(waste_array, np.array(stock_lengths) * (1 - waste_array))
         leftover_array = leftover_array * leftover_array
 
         score_total = leftover_array.sum()
-
-        print(f"Score total : {score_total}")
 
     # Simplified log
     log_string = f"{(str(model_args['id']) if 'id' in model_args else 'no_id')},{status},{round(model.objective_value, 3)},{time_elapsed},{waste_total},{score_total}"
