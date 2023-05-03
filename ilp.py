@@ -475,8 +475,8 @@ def _solve_order(model, stock_lengths, part_lengths, _):
             stock_extents[-1].append(extent)
     stock_extents = np.array(stock_extents)
     stock_wastes = np.array(stock_wastes)
-    print(stock_extents)
-    print(stock_wastes)
+    #print(stock_extents)
+    #print(stock_wastes)
 
     # Variable : Boolean whether a particular stock starts at a particular part
     stock_start = {(i, j): model.add_var(var_type=BINARY, name=f"stock_start[{i},{j}]")
