@@ -34,7 +34,12 @@ hops = hs.Hops(app)
     ]
 )
 def hops_ilp(method, stock_lengths, part_lengths, part_requests,name):
-    status, output, log = ilp.solve_ilp(method, stock_lengths, part_lengths, part_requests)
+    model_args = {
+        'max_seconds': 30,
+        'max_nodes': 1073741824,
+        'log_filepath': name
+    }
+    status, output, log = ilp.solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args)
     return output, log
 
 

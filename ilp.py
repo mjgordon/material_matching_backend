@@ -12,12 +12,11 @@ import psutil
 import time
 
 from mip import Model, xsum, BINARY, INTEGER, minimize, maximize, OptimizationStatus
-
-debug_print_variables = False
+from typing import Optional
 
 
 def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=None) -> tuple[
-    mip.OptimizationStatus, list[int], str]:
+    mip.OptimizationStatus, list[float], str]:
     """
     Solves a material matching problem using integer linear programming
     :param str method: Goal definition used. Currently, may be 'default' (minimize stock pieces), 'waste' (minimize
@@ -32,7 +31,10 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
     if model_args is None:
         model_args = {}
 
-    log_filepath = model_args["log_filepath"] if "log_filepath" in model_args else "log.csv"
+    if method == "order_split":
+        return solve_ilp_order_split(method, stock_lengths, part_lengths, model_args)
+
+    log_filepath = model_args.get("log_filepath", "log.csv")
     log_string = ""
 
     print(f"Method : {method}")
@@ -41,10 +43,10 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
     print(f"{sum(part_requests)} total part requests")
     print(f"Log filepath at : {log_filepath}")
     time_start = time.time()
-    model = Model()
-    model.max_mip_gap_abs = 1.5
-    model.max_mip_gap = .1
 
+    model = _get_basic_model(model_args)
+
+    # Export the scenario if necessary
     if "save_scenario" in model_args and model_args["save_scenario"]:
         output_dict = {"method": method,
                        "stock_lengths": stock_lengths,
@@ -53,69 +55,33 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
         with open("scenarios/scenario.json", 'w') as f:
             json.dump(output_dict, f)
 
-    if "clique" in model_args:
-        model.clique = int(model_args["clique"])
-
-    # 0 (No cuts) allows for finding feasible solutions within the 30-second window
-    if "cuts" in model_args:
-        model.cuts = int(model_args["cuts"])
-    else:
-        model.cuts = 0
-
-    if "emphasis" in model_args:
-        model.emphasis = int(model_args["emphasis"])
-    else:
-        model.emphasis = 1
-
-    if "lp_method" in model_args:
-        model.lp_method = int(model_args["lp_method"])
-
-    # Improves speed
-    if "preprocess" in model_args:
-        model.preprocess = int(model_args["preprocess"])
-    else:
-        model.preprocess = 1
-
+    # Setup the model specifics
     if method == "default":
-        solve_function = _solve_default
+        solve_function = _model_default
     elif method == "waste":
-        solve_function = _solve_waste
+        solve_function = _model_waste
     elif method == "max":
-        solve_function = _solve_max
+        solve_function = _model_max
     elif method == "order":
-        solve_function = _solve_order
-        part_lengths = np.repeat(part_lengths,part_requests,axis =0)
+        solve_function = _model_order
+        part_lengths = np.repeat(part_lengths, part_requests, axis=0)
         print(f"Part count new : {len(part_lengths)}")
     elif method == "homogenous":
-        solve_function = _solve_homogenous
+        solve_function = _model_homogenous
     else:
         print(f"Bad method argument '{method}'")
         log_string = f"{(str(model_args['id']) if 'id' in model_args else 'no_id')},{mip.OptimizationStatus.ERROR},{-1},{0}"
-
         log_line(log_string, log_filepath)
         return OptimizationStatus.NO_SOLUTION_FOUND, [0], log_string
 
     model, extra = solve_function(model, stock_lengths, part_lengths, part_requests)
-    model.threads = -1
 
-    max_nodes = 10001
-    if "max_nodes" in model_args:
-        max_nodes = int(model_args["max_nodes"])
-    print(f"Max Nodes : {max_nodes}")
+    max_nodes = int(model_args.get("max_nodes", 10000))
+    max_seconds = int(model_args.get("max_seconds", 30))
+    max_nodes_same_incumbent = int(model_args.get("max_nodes_same_incumbent", 1073741824))
+    max_seconds_same_incumbent = int(model_args.get("max_seconds_same_incumbent", 10000000))
 
-    max_seconds = 30
-    if "max_seconds" in model_args:
-        max_seconds = int(model_args["max_seconds"])
-
-    max_nodes_same_incumbent = 1073741824
-    if "max_nodes_same_incumbent" in model_args:
-        max_nodes_same_incumbent = int(model_args["max_nodes_same_incumbent"])
-
-    max_seconds_same_incumbent = float('inf')
-    if "max_seconds_same_incumbent" in model_args:
-        max_seconds_same_incumbent = int(model_args["max_seconds_same_incumbent"])
-
-    # optimizing the model
+    # Attempt to optimize the model
     status: OptimizationStatus = model.optimize(max_nodes=max_nodes,
                                                 max_seconds=max_seconds,
                                                 max_nodes_same_incumbent=max_nodes_same_incumbent,
@@ -127,73 +93,24 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
     print('')
     print(f"Optimization Status : {status}")
 
-    if status == OptimizationStatus.INFEASIBLE or status == OptimizationStatus.NO_SOLUTION_FOUND or status == OptimizationStatus.ERROR:
+    # Return if not at least feasible
+    if status in [OptimizationStatus.INFEASIBLE, OptimizationStatus.NO_SOLUTION_FOUND, OptimizationStatus.ERROR, OptimizationStatus.UNBOUNDED]:
         log_string = f"{(str(model_args['id']) if 'id' in model_args else 'no_id')},{status},0,{time_elapsed}"
         log_line(log_string, log_filepath)
         return status, [0], log_string
 
-    # printing the solution
-
+    # Print solution
     print('Objective value: {model.objective_value:.3}'.format(**locals()))
+    print('Objective bound: {model.objective_bound:.3}'.format(**locals()))
     print('Solution: ', end='')
 
-    if debug_print_variables:
-        for v in model.vars:
-            if v.x > 1e-5:
-                print('{v.name} = {v.x}'.format(**locals()))
-                print('          ', end='')
-
-    print(model.objective_value)
-    print(model.objective_bound)
-
+    # Extract variables
     output = [float(v.x) for v in model.vars]
-
-    """
-    CSV Record:
-    Context
-    Max threads : multiprocessing.cpu_count()
-    Memory psutil.virtual_memory()[0] / 1024^3
-    CPU: psutil.cpu_freq()[0]
-
-    Parameters: 288 variations
-    0 clique -1 (automatic) 0 (none) 1 (enabled) 2(aggressive)
-    1 cuts : -1 (automatic) 0( disabled) 1(moderate) 2 (aggressive) 3(most)
-    2 lp_method: 0: auto, 1 (dual) 2(primal) 3(barrier)
-    3 emphasis: 0 (balance), 1( feasibility), or 2(optimality)
-    4 preprocess: -1 (automatic) 0 (off) 1( on)
-
-
-    Output:
-    Time (seconds)
-    state( integer flag)
-    Objective Value (float)
-    """
-
-    # log_string = "threads, mem, cpu, clique, cuts, lp_method, emphasis, preprocess, goal_method, state, objective, time"
-    log_string = (str(model_args["id"]) if "id" in model_args else "no_id") + ","
-    log_string += str(multiprocessing.cpu_count()) + ","
-    log_string += str(round(psutil.virtual_memory()[0] / math.pow(1024, 3), 2)) + ","
-    log_string += str(psutil.cpu_freq()[0]) + ","
-
-    log_string += (str(model_args["clique"]) if "clique" in model_args else "") + ","
-    log_string += (str(model_args["cuts"]) if "cuts" in model_args else "") + ","
-    log_string += (str(model_args["emphasis"]) if "emphasis" in model_args else "") + ","
-    log_string += (str(model_args["lp_method"]) if "lp_method" in model_args else "") + ","
-    log_string += (str(model_args["preprocess"]) if "preprocess" in model_args else "") + ","
-
-    log_string += method + ","
-
-    log_string += str(status) + ","
-    log_string += str(round(model.objective_value, 3)) + ","
-    log_string += str(time_elapsed) + "\n"
-
-    value_waste = -1
-    value_score = -1
 
     waste_total = 0
     score_total = 0
 
-    # Reconstructing objectives
+    # Reconstruct objectives from variables
     if method in ["default", "waste", "max", "homogenous"]:
         part_count = len(part_lengths)
         stock_count = len(stock_lengths)
@@ -223,30 +140,265 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
 
         usage = np.array(output).reshape((len(part_lengths), len(stock_lengths)))
         usage = usage.transpose()
+        usage_array = usage.sum(axis=1)
 
         waste_total = np.sum(waste_values * usage)
 
         waste_array = np.sum(waste_values * usage, axis=1)
-        leftover_array = np.maximum(waste_array, np.array(stock_lengths) * (1 - waste_array))
+        leftover_array = np.maximum(waste_array, np.array(stock_lengths) * (1 - usage_array))
         leftover_array = leftover_array * leftover_array
 
         score_total = leftover_array.sum()
 
-    # Simplified log
-    log_string = f"{(str(model_args['id']) if 'id' in model_args else 'no_id')},{status},{round(model.objective_value, 3)},{time_elapsed},{waste_total},{score_total}"
+    # Assemble standard log line
+    # id, status, objective value, waste value, score value, total time, last improved time
+    log_id = str(model_args['id']) if 'id' in model_args else 'no_id'
+    log_objective_value = round(model.objective_value, 3)
+    log_improvement_time = _progress_log_last_time(model)
 
+    log_string = f"{log_id},{status},{log_objective_value},{waste_total},{score_total},{time_elapsed},{log_improvement_time}"
     log_line(log_string, log_filepath)
 
     return status, output, log_string
 
 
-def log_line(s, log_filepath):
-    s += "\n"
-    with open(log_filepath, "a") as f:
-        f.write(s)
+def solve_ilp_order_split(method, stock_lengths, part_lengths, model_args=None) -> tuple[
+    mip.OptimizationStatus, list[float], str]:
+    """
+    Note : in scenarios close to the feasible edge, the models integer tolerance was causing issues
+    (e.g. was returning values of 0.999999 which was messing with np.where. Remember to use np.rint on all relevant output)
+    """
+    stock_lengths = np.array(stock_lengths)
+
+    log_filepath = model_args.get("log_filepath", "log.csv")
+    log_id = str(model_args.get('id', 'no_id'))
+
+    print(f"Method : {method}")
+    print(f"{len(stock_lengths)} stock pieces between {np.min(stock_lengths)} and {np.max(stock_lengths)}")
+    print(f"{len(part_lengths)} part types between {np.min(part_lengths)} and {np.max(part_lengths)}")
+    print(f"Log filepath at : {log_filepath}")
+
+    max_seconds = int(model_args.get("max_seconds", 30))
+
+    final_assignment = np.repeat(-1, len(stock_lengths))
+
+    split_point = len(part_lengths) // 2
+    part_lengths_a = part_lengths[:split_point]
+    part_lengths_b = part_lengths[split_point:]
+
+    print(f"Parts A Shape : {len(part_lengths_a)}")
+    print(f"Parts B Shape : {len(part_lengths_b)}")
+
+    time_start = time.time()
+
+    # Run model A
+    model_a: mip.Model = _get_basic_model(model_args)
+    model_a, wastes_a, extents_a = _model_order(model_a, stock_lengths, part_lengths_a, None)
+    model_a.max_seconds = max_seconds
+    status_a: OptimizationStatus = model_a.optimize()
+
+    # Return if not at least feasible
+    if status_a in [OptimizationStatus.INFEASIBLE, OptimizationStatus.NO_SOLUTION_FOUND, OptimizationStatus.ERROR]:
+        elapsed_time = time.time() - time_start
+        log_string = f"{log_id},{status_a},0,0,0,{elapsed_time},{elapsed_time}"
+        log_line(log_string, log_filepath)
+        return status_a, [0], log_string
+
+    # Get output A
+    output_a = [float(v.x) for v in model_a.vars]
+    output_a = np.array(output_a).reshape((len(part_lengths_a), len(stock_lengths)))
+    output_a = output_a.transpose()
+    output_a = np.rint(output_a)
+
+    # Fill the final assignment array for the stock pieces used this round
+    print(output_a)
+    print(set(output_a.flatten()))
+    where_a = np.where(output_a.astype(int) == 1)
+    print(where_a)
+    final_assignment[where_a[0]] = where_a[1]
+
+    # Extract unused stock lengths, and their original position in the array
+    used_stock = output_a.sum(axis=1).astype('int')
+    print(used_stock)
+    stock_lengths_b = stock_lengths[used_stock == 0]
+    original_ids = np.array(range(len(stock_lengths)))[used_stock == 0]
+
+    print(f"Used stock count A : {used_stock.sum()}")
+    print(f"Stock  count B : {len(stock_lengths_b)}")
+
+    print(final_assignment)
+
+    coverage_check = 0
+    for i, a in enumerate(final_assignment):
+        if a != -1:
+            print((i,a))
+            coverage_check += extents_a[i,a]
+    print(f"Coverage check Just A : {coverage_check}")
+
+    # Run Model B
+    model_b: mip.Model = _get_basic_model(model_args)
+    model_b, wastes_b, extents_b = _model_order(model_b, stock_lengths_b, part_lengths_b, None)
+    model_b.max_seconds = max_seconds
+    status_b: OptimizationStatus = model_b.optimize()
+
+    # Return if not at least feasible
+    if status_b in [OptimizationStatus.INFEASIBLE, OptimizationStatus.NO_SOLUTION_FOUND, OptimizationStatus.ERROR]:
+        elapsed_time = time.time() - time_start
+        log_string = f"{log_id},{status_b},0,0,0,{elapsed_time},{elapsed_time}"
+        log_line(log_string, log_filepath)
+        return status_b, [0], log_string
+
+    time_end = time.time()
+    time_elapsed = round(time_end - time_start, 3)
+
+    # Get output B
+    output_b = [float(v.x) for v in model_b.vars]
+    output_b = np.array(output_b).reshape((len(part_lengths_b), len(stock_lengths_b)))
+    output_b = output_b.transpose()
+    output_b = np.rint(output_b)
+
+    # Fill the final assignment array for the stock pieces used in round B
+    where_b = np.where(output_b == 1)
+    final_assignment[original_ids[where_b[0]]] = where_b[1] + len(part_lengths_a)
+
+    # Create base for the combined waste matrix
+    waste_complete = wastes_a.transpose()
+    extents_complete = extents_a.transpose()
+
+    # Extend complete waste matrix
+    for i in range(len(part_lengths_b)):
+        waste_complete = np.append(waste_complete, np.zeros((1, len(stock_lengths))), axis=0)
+        extents_complete = np.append(extents_complete, np.zeros((1, len(stock_lengths))), axis=0)
+
+    # Fill in complete waste matrix
+    for i in range(len(stock_lengths_b)):
+        waste_complete[len(part_lengths_a):, original_ids[i]] = wastes_b[i]
+        extents_complete[len(part_lengths_a):, original_ids[i]] = extents_b[i]
+
+    waste_total = 0
+    score_total = 0
+    for i, v in enumerate(final_assignment):
+        if v == -1:
+            score_total += math.pow(stock_lengths[i], 2)
+        else:
+            waste_total += waste_complete[v, i]
+            score_total += math.pow(waste_complete[v, i], 2)
+
+    # Assemble standard log line
+    # id, status, objective value, waste value, score value, total time, last improved time
+    log_objective_value = round(model_a.objective_value + model_b.objective_value, 3)
+    log_improvement_time = _progress_log_last_time(model_a) + _progress_log_last_time(model_b)
+
+    log_string = f"{log_id},{model_a.status}/{model_b.status},{log_objective_value},{waste_total},{score_total},{time_elapsed},{log_improvement_time}"
+    log_line(log_string, log_filepath)
+
+    output = final_assignment.tolist()
+
+    print(f"Final Assignment :  {output}")
+
+    print(waste_complete)
+    print(extents_complete)
+
+    coverage_check = 0
+    coverage_a = 0
+    coverage_b = 0
+    for i, a in enumerate(output):
+        if a != -1:
+            coverage_check += extents_complete[a, i]
+            if a < len(part_lengths_a):
+                coverage_a += extents_complete[a, i]
+            else:
+                coverage_b += extents_complete[a, i]
+    print(f"Coverage check : {coverage_check}")
+
+    print(f"Objective A : {model_a.objective_value}")
+    print(f"Objective B : {model_b.objective_value}")
+
+    print(f"Coverage a : {coverage_a}")
+    print(f"Coverage B : {coverage_b}")
+
+    print(waste_complete.shape)
+    print(extents_complete.shape)
+
+    return model_a.status, output, log_string
 
 
-def _solve_default(model, stock_lengths, part_lengths, part_requests):
+def _get_basic_model(model_args) -> mip.Model:
+    # model = Model()
+    model = Model(solver_name=mip.GUROBI)
+
+    model.max_mip_gap = 0.01  # 1% gap
+    model.threads = -1  # Use all available cores
+    model.store_search_progress_log = True  # Necessary to check last improved time
+
+    if "clique" in model_args:
+        model.clique = int(model_args["clique"])
+
+    if "cuts" in model_args:
+        model.cuts = int(model_args["cuts"])
+
+    if "emphasis" in model_args:
+        model.emphasis = int(model_args["emphasis"])
+    else:
+        model.emphasis = 1  # Look for feasible solutions first
+
+    if "lp_method" in model_args:
+        model.lp_method = int(model_args["lp_method"])
+
+    if "preprocess" in model_args:
+        model.preprocess = int(model_args["preprocess"])
+    else:
+        model.preprocess = 1
+
+    return model
+
+
+def _get_model_log_string(method, model, model_args, time_elapsed):
+    """
+    Assembles a log string for use when testing model parameters
+    """
+    # log_string = "threads, mem, cpu, clique, cuts, lp_method, emphasis, preprocess, goal_method, state, objective, time"
+    log_string = (str(model_args["id"]) if "id" in model_args else "no_id") + ","
+    log_string += str(multiprocessing.cpu_count()) + ","
+    log_string += str(round(psutil.virtual_memory()[0] / math.pow(1024, 3), 2)) + ","
+    log_string += str(psutil.cpu_freq()[0]) + ","
+
+    log_string += (str(model_args["clique"]) if "clique" in model_args else "") + ","
+    log_string += (str(model_args["cuts"]) if "cuts" in model_args else "") + ","
+    log_string += (str(model_args["emphasis"]) if "emphasis" in model_args else "") + ","
+    log_string += (str(model_args["lp_method"]) if "lp_method" in model_args else "") + ","
+    log_string += (str(model_args["preprocess"]) if "preprocess" in model_args else "") + ","
+
+    log_string += method + ","
+
+    log_string += str(model.status) + ","
+    log_string += str(round(model.objective_value, 3)) + ","
+    log_string += str(time_elapsed) + "\n"
+
+    return log_string
+
+
+def _progress_log_last_time(model: mip.Model) -> Optional[float]:
+    if len(model.search_progress_log.log) == 0:
+        return None
+
+    log = model.search_progress_log.log
+    last_bound = log[-1][1][1]
+
+    for i, entry in enumerate(reversed(log)):
+        if i == 0:
+            continue
+        if entry[1][1] != last_bound:
+            return entry[0]
+
+    return log[0][0]
+
+    print(log[-1])
+    print(log[-2])
+    print(log[-3])
+
+
+def _model_default(model, stock_lengths, part_lengths, part_requests):
     """
     Strategy most similar to stock cutting example. 
     Built using loops and explicit utilization boolean variables
@@ -291,7 +443,7 @@ def _solve_default(model, stock_lengths, part_lengths, part_requests):
     return model, None
 
 
-def _solve_waste(model, stock_lengths, part_lengths, part_requests):
+def _model_waste(model, stock_lengths, part_lengths, part_requests):
     """
     Optimizes for minimizing waste from used pieces
     Does not attempt leftover usability
@@ -337,12 +489,14 @@ def _solve_waste(model, stock_lengths, part_lengths, part_requests):
                                     xsum((part_lengths[i] * part_usage[i, j]) for i in range(part_count))
                                     for j in range(stock_count)))
 
+    model.cuts = 3
+
     return model, None
 
 
-def _solve_max(model, stock_lengths, part_lengths, part_requests):
+def _model_max(model, stock_lengths, part_lengths, part_requests):
     """
-    Ignores the utilized variable, tries to optimize the square of leftovers Because we're trying to maximize a
+    Ignores the utilized variable, tries to optimize the square of leftovers. Because we're trying to maximize a
     convex function, uses special-ordered-sets to approximate the function with linear segments
     See :
     https://python-mip.readthedocs.io/en/latest/sos.html
@@ -370,9 +524,9 @@ def _solve_max(model, stock_lengths, part_lengths, part_requests):
                          part_requests[i])
     # Constraint : Ensure the used amount of the bar is <= the usable amount of the bar
     for j in range(stock_count):
-        model.add_lazy_constr(xsum(part_lengths[i] * part_usage[i, j] for i in range(part_count))
-                              <=
-                              stock_lengths[j])
+        model.add_constr(xsum(part_lengths[i] * part_usage[i, j] for i in range(part_count))
+                         <=
+                         stock_lengths[j])
 
     # Create the nonlinear function for the objective
     score = [model.add_var(f"score_{i}") for i in range(stock_count)]
@@ -390,12 +544,15 @@ def _solve_max(model, stock_lengths, part_lengths, part_requests):
         model.add_constr(score[j] == xsum(vn[k] * w[k] for k in range(d_count)))
         model.add_sos([(w[k], v[k]) for k in range(d_count)], 2)
 
+    model.clique_merge()
+    print(f"Model created with {len(model.vars)} variables and {len(model.constrs)} constraints")
+
     model.objective = maximize(xsum(score[i] for i in range(stock_count)))
 
     return model, None
 
 
-def _solve_homogenous(model, stock_lengths, part_lengths, part_requests):
+def _model_homogenous(model, stock_lengths, part_lengths, part_requests):
     """
     Optimizes for using the fewest number of unique part types in each stock type
     """
@@ -450,10 +607,12 @@ def _solve_homogenous(model, stock_lengths, part_lengths, part_requests):
     return model, None
 
 
-def _solve_order(model, stock_lengths, part_lengths, _):
+def _model_order(model: mip.Model, stock_lengths: [float], part_lengths: [float], _):
     """
     Optimizes for minimizing waste from used pieces
     Does not attempt leftover usability
+    Lazy constraints were tested but not conclusively useful and may be the wrong venue for them
+    Setting the cuts parameter aggressive was tested but not conclusive
     """
     part_lengths = np.array(part_lengths)
     part_count = len(part_lengths)
@@ -462,23 +621,10 @@ def _solve_order(model, stock_lengths, part_lengths, _):
     stock_count = len(stock_lengths)
 
     # Helper constant : If stock j starts at part i, it will be able to cover a total of n parts
-    stock_extents = []
-    stock_wastes = []
-    for j in range(stock_count):
-        stock_extents.append([])
-        stock_wastes.append([])
-        for i in range(part_count):
-            extent = 0
-            countdown = stock_lengths[j]
-            while (i + extent) < len(part_lengths) and countdown >= part_lengths[i + extent]:
-                countdown -= part_lengths[i + extent]
-                extent += 1
-            stock_wastes[-1].append(countdown)
-            stock_extents[-1].append(extent)
-    stock_extents = np.array(stock_extents)
-    stock_wastes = np.array(stock_wastes)
-    #print(stock_extents)
-    #print(stock_wastes)
+    stock_extents, stock_wastes = _calculate_order_constants(stock_lengths, part_lengths)
+
+    # print(stock_extents)
+    # print(stock_wastes)
 
     # Variable : Boolean whether a particular stock starts at a particular part
     stock_start = {(i, j): model.add_var(var_type=BINARY, name=f"stock_start[{i},{j}]")
@@ -497,7 +643,7 @@ def _solve_order(model, stock_lengths, part_lengths, _):
 
     # Constraint : Every stock start must come at the end of another
     for i in range(1, part_count):
-        model.add_constr(i * xsum(stock_start[i, j] for j in range(stock_count))
+        model.add_constr(i
                          <=
                          xsum(xsum(stock_start[i2, j] * stock_extents[j, i2] for i2 in range(i)) for j in
                               range(stock_count)))
@@ -512,15 +658,46 @@ def _solve_order(model, stock_lengths, part_lengths, _):
                      ==
                      part_count)
 
+    model.clique_merge()
+
+    model.pump_passes = 20
+
     print(f"Model created with {len(model.vars)} variables and {len(model.constrs)} constraints")
 
-    # model.objective = minimize(xsum(xsum(stock_start[i, j] for i in range(part_count)) for j in range(stock_count)))
     model.objective = minimize(
         xsum(xsum(stock_start[i, j] * stock_wastes[j, i] for i in range(part_count)) for j in range(stock_count)))
 
-    print()
+    return model, stock_wastes, stock_extents
 
-    return model, stock_wastes
+
+def solve_order_two():
+    pass
+
+
+def log_line(s, log_filepath):
+    s += "\n"
+    with open(log_filepath, "a") as f:
+        f.write(s)
+
+
+def _calculate_order_constants(stock_lengths, part_lengths):
+    stock_extents = []
+    stock_wastes = []
+    for j in range(len(stock_lengths)):
+        stock_extents.append([])
+        stock_wastes.append([])
+        for i in range(len(part_lengths)):
+            extent = 0
+            countdown = stock_lengths[j]
+            while (i + extent) < len(part_lengths) and countdown >= part_lengths[i + extent]:
+                countdown -= part_lengths[i + extent]
+                extent += 1
+            stock_wastes[-1].append(countdown)
+            stock_extents[-1].append(extent)
+    stock_extents = np.array(stock_extents)
+    stock_wastes = np.array(stock_wastes)
+
+    return stock_extents, stock_wastes
 
 
 def _demo_homogenous():
@@ -530,7 +707,7 @@ def _demo_homogenous():
 
     model = Model()
     model.preprocess = 1
-    model = _solve_homogenous(model, stock_lengths, part_lengths, part_requests)
+    model, extra = _model_homogenous(model, stock_lengths, part_lengths, part_requests)
     status: OptimizationStatus = model.optimize()
 
     print('')
@@ -556,35 +733,137 @@ def _demo_homogenous():
 
 
 def _demo_order():
-    stock_lengths = [10, 12, 16, 14, 14, 30, 12]
-    part_lengths = [5, 8, 4, 2, 1, 2, 4, 6, 5, 5, 5, 5, 5, 1, 3, 3, 4]
+    model_solver = mip.GUROBI
 
-    model = Model()
+    time = 600
+    stock_lengths = [10, 12, 16, 14, 14, 30, 12]
+    part_lengths = [5, 8, 4, 2, 1, 2, 4, 6, 5, 5, 5, 5, 5, 1, 3, 3, 4, 3.5,2.5,1.5]
+
+    # ~20 to be equal with dome
+    rep = 1
+
+    stock_lengths = np.repeat(stock_lengths, rep)
+    part_lengths = np.repeat(part_lengths, rep)
+
+    # Run model full
+    """
+    model = Model(solver_name=model_solver)
     model.preprocess = 1
-    model, extra = _solve_order(model, stock_lengths, part_lengths, None)
+    model.emphasis = 1
+    model.store_search_progress_log = True
+    model, waste_values = _model_order(model, stock_lengths, part_lengths, None)
+    model.max_seconds = time
     status: OptimizationStatus = model.optimize()
 
-    print('')
-    print(f"Optimization Status : {status}")
-
     output = [float(v.x) for v in model.vars]
-    output = np.array(output).reshape((len(part_lengths), len(stock_lengths)))
-    output = output.transpose()
-    print("Output:")
-    print(output)
-    print("Objective: ")
-    print(model.objective_value)
+    usage = np.array(output).reshape((len(part_lengths), len(stock_lengths)))
+    usage = usage.transpose()
+    usage_array = usage.sum(axis=1)
 
-    print('Waste matrix: ')
-    print(extra)
+    waste_total = np.sum(waste_values * usage)
 
-    waste_array = np.sum(output * extra, axis = 1)
-    leftover_array = np.maximum(waste_array, np.array(stock_lengths) * (1-waste_array) )
+    waste_array = np.sum(waste_values * usage, axis=1)
+    leftover_array = np.maximum(waste_array, np.array(stock_lengths) * (1 - usage_array))
     leftover_array = leftover_array * leftover_array
 
-    print(waste_array)
-    print(leftover_array)
-    print(leftover_array.sum())
+    score_total = leftover_array.sum()
+
+    print(status)
+
+    return 0
+    """
+
+    print(f"Demo with {len(stock_lengths)} stock pieces and {len(part_lengths)} part requests")
+
+    final_assignment = np.repeat(-1, len(stock_lengths))
+
+    split_point = len(part_lengths) // 2
+    part_lengths_a = part_lengths[:split_point]
+    part_lengths_b = part_lengths[split_point:]
+
+    # Run model A
+    model_a = Model(solver_name=model_solver)
+    model_a.preprocess = 1
+    model_a.emphasis = 1
+    model_a, extra_a, extents_a = _model_order(model_a, stock_lengths, part_lengths_a, None)
+    model_a.max_seconds = time
+    status_a: OptimizationStatus = model_a.optimize()
+
+    # Get output A
+    output = [float(v.x) for v in model_a.vars]
+    output = np.array(output).reshape((len(part_lengths_a), len(stock_lengths)))
+    output = output.transpose()
+
+    # Fill the final assignment array for the stock pieces used this round
+    where_a = np.where(output == 1)
+    final_assignment[where_a[0]] = where_a[1]
+
+    # Extract unused stock lengths, and their original position in the array
+    used_stock = output.sum(axis=1)
+    stock_lengths_b = stock_lengths[used_stock == 0]
+    original_ids = np.array(range(len(stock_lengths)))[used_stock == 0]
+
+    # Run Model B
+    model_b = Model(solver_name=model_solver)
+    model_b.preprocess = 1
+    model_b.emphasis = 1
+    model_b, extra_b, extents_b = _model_order(model_b, stock_lengths_b, part_lengths_b, None)
+    model_b.max_seconds = time
+    status_b: OptimizationStatus = model_b.optimize()
+
+    # Get output B
+    output = [float(v.x) for v in model_b.vars]
+    output = np.array(output).reshape((len(part_lengths_b), len(stock_lengths_b)))
+    output = output.transpose()
+
+    # Fill the final assignment array for the stock pieces used in round B
+    where_b = np.where(output == 1)
+    final_assignment[original_ids[where_b[0]]] = where_b[1] + len(part_lengths_a)
+
+    # Create base for the combined waste matrix
+    waste_complete = extra_a.transpose()
+    extents_complete = extents_a.transpose()
+
+    # Extend complete waste matrix
+    for i in range(len(part_lengths_b)):
+        waste_complete = np.append(waste_complete, np.zeros((1, len(stock_lengths))), axis=0)
+        extents_complete = np.append(extents_complete, np.zeros((1, len(stock_lengths))), axis=0)
+
+    # Fill in complete waste matrix
+    for i in range(len(stock_lengths_b)):
+        waste_complete[len(part_lengths_a):, original_ids[i]] = extra_b[i]
+        extents_complete[len(part_lengths_a):, original_ids[i]] = extents_b[i]
+
+    if True:
+        print('Complete Waste matrix: ')
+        np.set_printoptions(linewidth=np.inf)
+        np.set_printoptions(threshold=np.inf)
+        print(waste_complete)
+        print(extents_complete)
+
+    waste_total = 0
+    score_total = 0
+    for i, v in enumerate(final_assignment):
+        if v == -1:
+            score_total += math.pow(stock_lengths[i], 2)
+        else:
+            waste_total += waste_complete[v, i]
+            score_total += math.pow(waste_complete[v, i], 2)
+
+    print('')
+    print(f"Optimization Status A : {status_a}")
+    print(f"Optimization Status B : {status_b}")
+    print(f"Objective A : {model_a.objective_value}")
+    print(f"Objective B : {model_b.objective_value}")
+    print(f"Final Assignment : {final_assignment}")
+    print(f"Waste : {waste_total}")
+    print(f"Score : {score_total}")
+
+    coverage_check = 0
+    for i, a in enumerate(final_assignment):
+        if a != -1:
+            coverage_check += extents_complete[a, i]
+    print(f"Coverage check : {coverage_check}")
 
 
 if __name__ == "__main__":

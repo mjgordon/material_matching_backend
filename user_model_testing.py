@@ -32,6 +32,7 @@ def main():
         filepath = args["file"]
     else:
         filepath = "scenarios/scenario_test_inventory.json"
+        #filepath = "scenarios/scenario_test_inventory_order.json"
     with open(filepath) as file:
         scenario_json = json.load(file)
 
@@ -86,9 +87,10 @@ def main():
         for j in range(1):
             scenario_json["model_args"] = {"id": i, # set back to count if j > 1
                                            "max_nodes": 1073741824,
-                                           "max_seconds": 300,
+                                           "max_seconds": 600,
                                            "max_nodes_same_incumbent": 10000}
             scenario_json["stock_lengths"] = stock_lengths[0:len(stock_lengths) - i]
+            #scenario_json["stock_lengths"] = stock_lengths[0:i + 1]
             sio.emit("solve_request", scenario_json)
             print(f"{count} : {i}")
             solving_flag = True

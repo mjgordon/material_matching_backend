@@ -50,8 +50,8 @@ def disconnect():
 
 @sio.on("solve_request")
 def solve_request(data):
-
-    print(f"\nReceived solve request at {str(datetime.datetime.now())}")
+    print("\n========================================================================")
+    print(f"Received solve request at {str(datetime.datetime.now())}")
     method = data["method"]
     stock_lengths = [float(n) for n in data["stock_lengths"]]
     part_lengths = [float(n) for n in data["part_lengths"]]
@@ -60,14 +60,13 @@ def solve_request(data):
 
     status, solve_output, log_string = ilp.solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=model_args)
 
-    if status == mip.OptimizationStatus.INFEASIBLE or status == mip.OptimizationStatus.NO_SOLUTION_FOUND or status == mip.OptimizationStatus.ERROR:
+    if status in [mip.OptimizationStatus.INFEASIBLE, mip.OptimizationStatus.NO_SOLUTION_FOUND, mip.OptimizationStatus.ERROR]:
         response = {'requester_sid': data['requester_sid'], 'log_string': log_string}
         sio.emit("solve_infeasible", response)
     else:
-        if method != 'order':
+        if method not in ['order', 'order_split']:
             solve_output = solve_output[0:-len(stock_lengths)]
         response = {'requester_sid': data['requester_sid'], 'usage': solve_output, 'log_string': log_string}
-
         sio.emit("solve_response", response)
 
 
