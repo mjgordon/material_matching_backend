@@ -148,11 +148,34 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
 
         score_total = leftover_array.sum()
 
+    # Calculate 'best' possible score
+    best_total = 0
+    part_lengths_np = np.array([float(n) for n in part_lengths])
+    part_requests_np = np.array([float(n) for n in part_requests])
+    stock_np = np.array([float(n) for n in stock_lengths])
+    stock_np.sort()
+    design_sum = (part_lengths_np * part_requests_np).sum()
+    for stock in stock_np:
+        if design_sum <= 0:
+            best_total += stock ** 2
+        elif design_sum >= stock:
+            design_sum -= stock
+        elif design_sum < stock:
+            stock -= design_sum
+            best_total += stock ** 2
+            design_sum = 0
+
+    # Scale the output score
+    score_total = score_total / best_total
+
     # Assemble standard log line
     # id, status, objective value, waste value, score value, total time, last improved time
     log_id = str(model_args['id']) if 'id' in model_args else 'no_id'
     log_objective_value = round(model.objective_value, 3)
     log_improvement_time = _progress_log_last_time(model)
+
+    if method == 'max':
+        log_objective_value = score_total
 
     log_string = f"{log_id},{status},{log_objective_value},{waste_total},{score_total},{time_elapsed},{log_improvement_time}"
     log_line(log_string, log_filepath)
