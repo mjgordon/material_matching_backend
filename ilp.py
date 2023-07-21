@@ -74,7 +74,7 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
         log_line(log_string, log_filepath)
         return OptimizationStatus.NO_SOLUTION_FOUND, [0], log_string
 
-    model, extra = solve_function(model, stock_lengths, part_lengths, part_requests)
+    model, stock_wastes, stock_extents = solve_function(model, stock_lengths, part_lengths, part_requests)
 
     max_nodes = int(model_args.get("max_nodes", 10000))
     max_seconds = int(model_args.get("max_seconds", 30))
@@ -136,15 +136,13 @@ def solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=Non
 
             score_total += (stock_lengths[i] - usage) ** 2
     elif method == 'order':
-        waste_values = extra
-
         usage = np.array(output).reshape((len(part_lengths), len(stock_lengths)))
         usage = usage.transpose()
         usage_array = usage.sum(axis=1)
 
-        waste_total = np.sum(waste_values * usage)
+        waste_total = np.sum(stock_wastes * usage)
 
-        waste_array = np.sum(waste_values * usage, axis=1)
+        waste_array = np.sum(stock_wastes * usage, axis=1)
         leftover_array = np.maximum(waste_array, np.array(stock_lengths) * (1 - usage_array))
         leftover_array = leftover_array * leftover_array
 
@@ -442,7 +440,7 @@ def _model_default(model, stock_lengths, part_lengths, part_requests):
 
     model.objective = minimize(xsum(stock_usage[i] for i in range(stock_count)))
 
-    return model, None
+    return model, None, None
 
 
 def _model_waste(model, stock_lengths, part_lengths, part_requests):
@@ -493,7 +491,7 @@ def _model_waste(model, stock_lengths, part_lengths, part_requests):
 
     model.cuts = 3
 
-    return model, None
+    return model, None, None
 
 
 def _model_max(model, stock_lengths, part_lengths, part_requests):
@@ -547,11 +545,13 @@ def _model_max(model, stock_lengths, part_lengths, part_requests):
         model.add_sos([(w[k], v[k]) for k in range(d_count)], 2)
 
     model.clique_merge()
+    model.cuts = 3
+    
     print(f"Model created with {len(model.vars)} variables and {len(model.constrs)} constraints")
 
     model.objective = maximize(xsum(score[i] for i in range(stock_count)))
 
-    return model, None
+    return model, None, None
 
 
 def _model_homogenous(model, stock_lengths, part_lengths, part_requests):
@@ -606,7 +606,7 @@ def _model_homogenous(model, stock_lengths, part_lengths, part_requests):
     model.objective = minimize(xsum(xsum(part_type_usage[i, j] for i in range(part_count))
                                     for j in range(stock_count)))
 
-    return model, None
+    return model, None, None
 
 
 def _model_order(model: mip.Model, stock_lengths: [float], part_lengths: [float], _):
