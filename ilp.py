@@ -324,8 +324,10 @@ def solve_ilp_order_split(method, stock_lengths, part_lengths, model_args=None) 
 
 
 def _get_basic_model(model_args) -> mip.Model:
-    # model = Model()
-    model = Model(solver_name=mip.GUROBI)
+    if 'use_gurobi' in model_args and model_args['use_gurobi']:
+        model = Model(solver_name=mip.GUROBI)
+    else:
+        model = Model()
 
     model.max_mip_gap = 0.01  # 1% gap
     model.threads = -1  # Use all available cores

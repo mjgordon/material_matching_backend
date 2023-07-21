@@ -16,12 +16,15 @@ sio = socketio.Client()
 
 solver_name = ""
 
+use_gurobi = True
+
 
 def main():
-    global solver_name
+    global solver_name, use_gurobi
     parser = argparse.ArgumentParser(description='Give dispatcher IP address')
     parser.add_argument("-i","--ip")
     parser.add_argument("-n","--name")
+    parser.add_argument("--gurobi",action=argparse.BooleanOptionalAction)
     args = vars(parser.parse_args())
 
     print(f"Looking for dispatcher at {args['ip']}")
@@ -33,6 +36,10 @@ def main():
         sio.connect(f"http://{args['ip']}:52323")
     else:
         sio.connect('http://localhost:52323')
+
+    if "gurobi" in args:
+        use_gurobi = args["gurobi"]
+        print("Use Gurobi : " + str(args["gurobi"]))
 
     sio.wait()
 
@@ -57,6 +64,8 @@ def solve_request(data):
     part_lengths = [float(n) for n in data["part_lengths"]]
     part_requests = [int(n) for n in data["part_requests"]]
     model_args = data["model_args"] if "model_args" in data else {}
+
+    model_args["use_gurobi"] = use_gurobi
 
     status, solve_output, log_string = ilp.solve_ilp(method, stock_lengths, part_lengths, part_requests, model_args=model_args)
 
